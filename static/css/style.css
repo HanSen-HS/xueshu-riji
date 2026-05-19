@@ -50,6 +50,14 @@ a:hover { text-decoration: underline; }
 .drive-badge { font-size: 11px; background: rgba(255,255,255,.15);
                color: #a5d6a7; padding: 2px 8px; border-radius: 10px; }
 
+.lang-switcher { display: flex; gap: 4px; }
+.lang-btn { background: transparent; border: 1px solid rgba(255,255,255,.25);
+            color: #ccd; font-size: 12px; padding: 3px 8px; border-radius: 5px;
+            cursor: pointer; transition: all .15s; }
+.lang-btn:hover { background: rgba(255,255,255,.12); color: #fff; }
+.lang-active { background: rgba(255,255,255,.2) !important; color: #fff !important;
+               border-color: rgba(255,255,255,.5) !important; }
+
 /* ── Buttons ────────────────────────────────────────────────── */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
        border-radius: var(--radius-sm); font-size: 14px; font-weight: 500;

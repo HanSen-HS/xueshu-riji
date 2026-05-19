@@ -14,6 +14,7 @@
     <span class="nav-title">学术日志</span>
   </a>
   <div class="nav-actions">
+    <div id="langSwitcher" class="lang-switcher"></div>
     {% if current_user %}
       <a href="{{ url_for('leaderboard') }}" class="nav-link">🏆 排行榜</a>
       <div class="user-info">
@@ -43,6 +44,7 @@
 </main>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
