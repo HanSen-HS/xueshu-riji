@@ -739,8 +739,9 @@ def summarize_upload(upload_id):
     if not api_key:
         return jsonify({'error': 'AI 功能未配置，请在 Render 环境变量中添加 SILICONFLOW_API_KEY'}), 503
 
+    data_bytes = base64.b64decode(row['data'])
     try:
-        text = _extract_text(base64.b64decode(row['data']), row['filename'])
+        text = _extract_text(data_bytes, row['filename'])
     except ImportError as e:
         return jsonify({'error': f'服务器依赖库缺失，请稍候重试（{e}）'}), 503
     except Exception as e:
