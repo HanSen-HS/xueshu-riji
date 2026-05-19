@@ -15,7 +15,6 @@
   </a>
   <div class="nav-actions">
     {% if current_user %}
-      <a href="{{ url_for('new_entry') }}" class="btn btn-primary btn-sm">＋ 新建日志</a>
       <div class="user-info">
         {% if current_user.avatar %}
           <img src="{{ current_user.avatar }}" class="avatar" alt="avatar">
