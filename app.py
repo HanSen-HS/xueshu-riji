@@ -475,6 +475,19 @@ def create_entry():
          data.get('reflections',''),
          json.dumps(insights, ensure_ascii=False),
          json.dumps(tags, ensure_ascii=False), now, now))
+    # 保存新建时关联的 Drive 文档
+    fids   = request.form.getlist('drive_file_id[]')
+    fnames = request.form.getlist('drive_file_name[]')
+    furls  = request.form.getlist('drive_file_url[]')
+    fmimes = request.form.getlist('drive_mime_type[]')
+    for i, fid in enumerate(fids):
+        if not fid: continue
+        get_db().execute("INSERT INTO drive_links VALUES (?,?,?,?,?,?,?,?)",
+            (str(uuid.uuid4()), eid, uid, fid,
+             fnames[i] if i < len(fnames) else '',
+             furls[i]  if i < len(furls)  else '',
+             fmimes[i] if i < len(fmimes) else '',
+             now))
     get_db().commit()
     flash('日志已保存 ✓', 'success')
     return redirect(url_for('view_entry', entry_id=eid))
