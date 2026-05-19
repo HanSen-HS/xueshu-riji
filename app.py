@@ -748,24 +748,51 @@ def summarize_upload(upload_id):
 
     if text is None:
         return jsonify({'error': '该文件格式不支持 AI 总结，仅支持 PDF、Word(.docx)、PPT(.pptx)、TXT、MD'}), 400
-    if not text.strip():
-        return jsonify({'error': '未能从文件中提取到文字，可能是扫描件或纯图片 PDF，暂不支持'}), 400
-
-    text = text[:10000]  # 截断防止超出 token 限制
 
     try:
         from openai import OpenAI
         client = OpenAI(api_key=api_key, base_url='https://api.siliconflow.cn/v1')
-        resp = client.chat.completions.create(
-            model='deepseek-ai/DeepSeek-V3',
-            messages=[{'role': 'user', 'content':
-                f'请对以下文档内容做简洁的学术总结，用中文输出，格式如下：\n'
-                f'【核心主题】（1~2句）\n'
-                f'【主要内容】（3~5条，每条以• 开头）\n'
-                f'【关键结论】（1~2句）\n\n文档内容：\n{text}'}],
-            max_tokens=700,
-            temperature=0.3,
-        )
+
+        if text.strip():
+            # 有文字层 → DeepSeek-V3 文本总结
+            resp = client.chat.completions.create(
+                model='deepseek-ai/DeepSeek-V3',
+                messages=[{'role': 'user', 'content':
+                    f'请对以下文档内容做简洁的学术总结，用中文输出，格式如下：\n'
+                    f'【核心主题】（1~2句）\n'
+                    f'【主要内容】（3~5条，每条以• 开头）\n'
+                    f'【关键结论】（1~2句）\n\n文档内容：\n{text[:10000]}'}],
+                max_tokens=700, temperature=0.3,
+            )
+        else:
+            # 扫描版 PDF → 渲染为图片，用视觉模型总结
+            if Path(row['filename']).suffix.lower() != '.pdf':
+                return jsonify({'error': '未能提取文字，该文件可能是扫描件且不支持图像识别'}), 400
+            try:
+                import fitz
+            except ImportError:
+                return jsonify({'error': '扫描版 PDF 支持正在部署，请稍候几分钟重试'}), 503
+
+            doc = fitz.open(stream=base64.b64decode(row['data']), filetype='pdf')
+            content = [{'type': 'text', 'text':
+                '以下是一篇学术论文的扫描页面，请用中文做简洁的学术总结，格式：\n'
+                '【核心主题】（1~2句）\n'
+                '【主要内容】（3~5条，每条以• 开头）\n'
+                '【关键结论】（1~2句）'}]
+            for i, page in enumerate(doc):
+                if i >= 5:
+                    break
+                pix = page.get_pixmap(matrix=fitz.Matrix(1.0, 1.0))
+                content.append({'type': 'image_url', 'image_url': {
+                    'url': f'data:image/png;base64,{base64.b64encode(pix.tobytes("png")).decode()}'
+                }})
+
+            resp = client.chat.completions.create(
+                model='Qwen/Qwen2-VL-72B-Instruct',
+                messages=[{'role': 'user', 'content': content}],
+                max_tokens=700, temperature=0.3,
+            )
+
         return jsonify({'success': True, 'summary': resp.choices[0].message.content})
     except Exception as e:
         return jsonify({'error': f'AI 请求失败：{e}'}), 500
