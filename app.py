@@ -495,12 +495,14 @@ def create_entry():
     # 保存本地上传文件
     for f in request.files.getlist('local_files[]'):
         if not f or not f.filename: continue
-        ext = Path(secure_filename(f.filename)).suffix.lower()
+        ext = Path(f.filename).suffix.lower()
         if ext not in ALLOWED_EXTS: continue
         raw = f.read()
         if len(raw) > 20 * 1024 * 1024: continue
+        safe = secure_filename(f.filename)
+        fname = safe if safe and safe != ext.lstrip('.') else ('file' + ext)
         get_db().execute("INSERT INTO uploads VALUES (?,?,?,?,?,?,?,?)",
-            (str(uuid.uuid4()), eid, uid, secure_filename(f.filename),
+            (str(uuid.uuid4()), eid, uid, fname,
              f.mimetype, len(raw), base64.b64encode(raw).decode(), now))
     # 保存新建时关联的 Drive 文档
     fids   = request.form.getlist('drive_file_id[]')
@@ -661,7 +663,8 @@ def upload_file(entry_id):
     f = request.files.get('file')
     if not f or not f.filename:
         return jsonify({'error': '未选择文件'}), 400
-    ext = Path(secure_filename(f.filename)).suffix.lower()
+    # 先从原始文件名取后缀（保留中文等非ASCII字符中的扩展名）
+    ext = Path(f.filename).suffix.lower()
     if ext not in ALLOWED_EXTS:
         return jsonify({'error': f'不支持 {ext} 格式'}), 400
     raw = f.read()
@@ -669,7 +672,9 @@ def upload_file(entry_id):
         return jsonify({'error': '文件不能超过 20MB'}), 400
     uid_str = str(uuid.uuid4())
     now     = datetime.now().isoformat()
-    fname   = secure_filename(f.filename)
+    # 安全文件名：去掉非ASCII后若仅剩扩展名则补 file 作为名称
+    safe = secure_filename(f.filename)
+    fname = safe if safe and safe != ext.lstrip('.') else ('file' + ext)
     get_db().execute("INSERT INTO uploads VALUES (?,?,?,?,?,?,?,?)",
         (uid_str, entry_id, uid, fname, f.mimetype,
          len(raw), base64.b64encode(raw).decode(), now))
