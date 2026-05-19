@@ -120,6 +120,37 @@
       </div>
       {% endif %}
     </div>
+    <!-- 本地文件上传 -->
+    <div class="detail-card" style="margin-top:16px">
+      <div class="drive-side-header">
+        <h2 class="detail-section-title">📎 本地文档</h2>
+        {% if current_user %}
+        <label class="btn btn-outline-sm" for="fileUpload" style="cursor:pointer">＋ 上传</label>
+        <input type="file" id="fileUpload" style="display:none"
+               accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.jpg,.png,.zip"
+               onchange="uploadFile(this)">
+        {% endif %}
+      </div>
+      <div id="uploadProgress" class="hint-text" style="display:none">上传中，请稍候…</div>
+      <div id="uploadList">
+        {% if uploads %}
+          {% for u in uploads %}
+          <div class="linked-drive-item" id="up-{{ u.id }}">
+            <span class="drive-item-icon">{{ file_icon(u.mimetype) }}</span>
+            <a href="{{ url_for('download_file', upload_id=u.id) }}" target="_blank"
+               class="drive-item-name">{{ u.filename }}</a>
+            <span style="font-size:11px;color:#888">{{ (u.size/1024)|round(1) }}KB</span>
+            {% if current_user %}
+            <button type="button" class="btn-remove-link"
+                    onclick="deleteUpload('{{ u.id }}')">✕</button>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="hint-text" id="noUploadsMsg">暂无本地文档</p>
+        {% endif %}
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -203,6 +234,42 @@ function unlinkDrive(entryId, linkId) {
 function escHtml(str) {
   return String(str).replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function uploadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const prog = document.getElementById('uploadProgress');
+  prog.style.display = 'block';
+  const fd = new FormData();
+  fd.append('file', file);
+  fetch(`/entry/${ENTRY_ID}/upload`, {method:'POST', body:fd})
+    .then(r => r.json()).then(data => {
+      prog.style.display = 'none';
+      input.value = '';
+      if (!data.success) { alert(data.error || '上传失败'); return; }
+      document.getElementById('noUploadsMsg')?.remove();
+      const item = document.createElement('div');
+      item.className = 'linked-drive-item';
+      item.id = `up-${data.id}`;
+      item.innerHTML = `
+        <span class="drive-item-icon">📎</span>
+        <a href="/upload/${data.id}" target="_blank" class="drive-item-name">${escHtml(data.filename)}</a>
+        <span style="font-size:11px;color:#888">${(data.size/1024).toFixed(1)}KB</span>
+        <button type="button" class="btn-remove-link" onclick="deleteUpload('${data.id}')">✕</button>`;
+      document.getElementById('uploadList').appendChild(item);
+    }).catch(() => { prog.style.display='none'; alert('上传失败，请重试'); });
+}
+
+function deleteUpload(uploadId) {
+  fetch(`/upload/${uploadId}`, {method:'DELETE'})
+    .then(r => r.json()).then(d => {
+      if (d.success) {
+        document.getElementById(`up-${uploadId}`)?.remove();
+        if (!document.querySelector('#uploadList .linked-drive-item'))
+          document.getElementById('uploadList').innerHTML = '<p class="hint-text" id="noUploadsMsg">暂无本地文档</p>';
+      }
+    });
 }
 </script>
 {% endif %}

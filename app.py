@@ -1,6 +1,6 @@
 """学术日志系统 - 多账号认证版"""
 
-import os, json, sqlite3, uuid, secrets, hashlib, base64, requests as req_lib
+import os, io, json, sqlite3, uuid, secrets, hashlib, base64, requests as req_lib
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from functools import wraps
@@ -8,8 +8,9 @@ from functools import wraps
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # 反向代理后 HTTPS 由 Render 层保证
 
 from flask import (Flask, render_template, request, redirect,
-                   url_for, session, jsonify, flash, g)
+                   url_for, session, jsonify, flash, g, send_file)
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -17,6 +18,7 @@ from googleapiclient.errors import HttpError
 from requests_oauthlib import OAuth2Session
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB 上传限制
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -149,6 +151,10 @@ def init_db():
             id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, user_id TEXT,
             file_id TEXT NOT NULL, file_name TEXT NOT NULL,
             file_url TEXT NOT NULL, mime_type TEXT DEFAULT '', linked_at TEXT)""",
+        """CREATE TABLE IF NOT EXISTS uploads (
+            id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, user_id TEXT,
+            filename TEXT NOT NULL, mimetype TEXT DEFAULT '',
+            size INTEGER DEFAULT 0, data TEXT, uploaded_at TEXT)""",
     ]:
         db.execute(sql)
     db.commit()
@@ -215,6 +221,17 @@ def mime_icon(mime):
     if 'image'        in mime: return '🖼️'
     return '📄'
 
+def file_icon(mime):
+    if not mime: return '📄'
+    if 'pdf'          in mime: return '📕'
+    if 'word'         in mime or 'document'     in mime: return '📝'
+    if 'excel'        in mime or 'spreadsheet'  in mime or 'sheet' in mime: return '📊'
+    if 'powerpoint'   in mime or 'presentation' in mime: return '📋'
+    if 'text'         in mime: return '📄'
+    if 'image'        in mime: return '🖼️'
+    if 'zip'          in mime or 'compress'     in mime: return '🗜️'
+    return '📎'
+
 def _pkce_pair():
     v = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b'=').decode()
     c = base64.urlsafe_b64encode(hashlib.sha256(v.encode()).digest()).rstrip(b'=').decode()
@@ -243,7 +260,7 @@ def _find_or_create_oauth_user(email, name, provider, provider_id, avatar=''):
 @app.context_processor
 def inject_user():
     u = current_user()
-    return {'current_user': u, 'mime_icon': mime_icon, 'moods': MOODS}
+    return {'current_user': u, 'mime_icon': mime_icon, 'file_icon': file_icon, 'moods': MOODS}
 
 # ── 本地邮箱+密码登录 ─────────────────────────────────────────
 @app.route('/login', methods=['GET', 'POST'])
@@ -503,8 +520,12 @@ def view_entry(entry_id):
     drives = get_db().execute(
         "SELECT * FROM drive_links WHERE entry_id=? ORDER BY linked_at DESC",
         (entry_id,)).fetchall()
+    uploads = get_db().execute(
+        "SELECT id, filename, mimetype, size FROM uploads WHERE entry_id=? ORDER BY uploaded_at DESC",
+        (entry_id,)).fetchall()
     return render_template('entry.html',
         entry=entry_to_dict(row), drives=[dict(d) for d in drives],
+        uploads=[dict(u) for u in uploads],
         categories=dict(ACTIVITY_CATEGORIES),
         has_drive=bool(session.get('google_credentials')))
 
@@ -613,6 +634,56 @@ def link_drive(entry_id):
 def unlink_drive(entry_id, link_id):
     get_db().execute("DELETE FROM drive_links WHERE id=? AND entry_id=?",
                      (link_id, entry_id))
+    get_db().commit()
+    return jsonify({'success': True})
+
+# ── 本地文件上传 ──────────────────────────────────────────────
+ALLOWED_EXTS = {'.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx',
+                '.txt','.md','.csv','.jpg','.jpeg','.png','.gif','.zip'}
+
+@app.route('/entry/<entry_id>/upload', methods=['POST'])
+@login_required
+def upload_file(entry_id):
+    uid = session['user_id']
+    if not get_db().execute("SELECT id FROM entries WHERE id=? AND user_id=?",
+                            (entry_id, uid)).fetchone():
+        return jsonify({'error': '日志不存在'}), 404
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return jsonify({'error': '未选择文件'}), 400
+    ext = Path(secure_filename(f.filename)).suffix.lower()
+    if ext not in ALLOWED_EXTS:
+        return jsonify({'error': f'不支持 {ext} 格式'}), 400
+    raw = f.read()
+    if len(raw) > 20 * 1024 * 1024:
+        return jsonify({'error': '文件不能超过 20MB'}), 400
+    uid_str = str(uuid.uuid4())
+    now     = datetime.now().isoformat()
+    fname   = secure_filename(f.filename)
+    get_db().execute("INSERT INTO uploads VALUES (?,?,?,?,?,?,?,?)",
+        (uid_str, entry_id, uid, fname, f.mimetype,
+         len(raw), base64.b64encode(raw).decode(), now))
+    get_db().commit()
+    return jsonify({'success': True, 'id': uid_str,
+                    'filename': fname, 'size': len(raw), 'mimetype': f.mimetype})
+
+@app.route('/upload/<upload_id>')
+@login_required
+def download_file(upload_id):
+    uid = session['user_id']
+    row = get_db().execute("SELECT * FROM uploads WHERE id=? AND user_id=?",
+                           (upload_id, uid)).fetchone()
+    if not row:
+        return '文件不存在', 404
+    data = base64.b64decode(row['data'])
+    return send_file(io.BytesIO(data), mimetype=row['mimetype'],
+                     as_attachment=False, download_name=row['filename'])
+
+@app.route('/upload/<upload_id>', methods=['DELETE'])
+@login_required
+def delete_upload(upload_id):
+    uid = session['user_id']
+    get_db().execute("DELETE FROM uploads WHERE id=? AND user_id=?", (upload_id, uid))
     get_db().commit()
     return jsonify({'success': True})
 
