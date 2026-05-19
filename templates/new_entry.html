@@ -327,5 +327,12 @@ function previewLocalFiles(input) {
     preview.appendChild(item);
   });
 }
+
+// 进入新建日志页自动启动番茄钟
+document.addEventListener('DOMContentLoaded', () => {
+  {% if not entry %}
+  if (window.__pomodoroAutoStart) window.__pomodoroAutoStart();
+  {% endif %}
+});
 </script>
 {% endblock %}

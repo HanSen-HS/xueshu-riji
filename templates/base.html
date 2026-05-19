@@ -39,12 +39,28 @@
   {% endfor %}
 </div>
 
+<!-- 番茄钟 -->
+<div id="pomodoroWidget" class="pomo-widget">
+  <div class="pomo-header">
+    <svg class="pomo-ring" viewBox="0 0 48 48">
+      <circle class="pomo-ring-bg" cx="24" cy="24" r="20"/>
+      <circle class="pomo-ring-fill" cx="24" cy="24" r="20"/>
+    </svg>
+    <span class="pomo-dot"></span>
+    <span class="pomo-time">25:00</span>
+    <button class="pomo-pause" onclick="__pomodoroPause()" title="暂停/继续">▶</button>
+    <button class="pomo-reset" onclick="__pomodoroReset()" title="重置">↺</button>
+  </div>
+  <div class="pomo-label">🍅 第 1 个番茄 · 25min</div>
+</div>
+
 <main class="main-content">
   {% block content %}{% endblock %}
 </main>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+<script src="{{ url_for('static', filename='js/timer.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
