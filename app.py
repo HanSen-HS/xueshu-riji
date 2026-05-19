@@ -699,30 +699,25 @@ def delete_upload(upload_id):
 
 # ── AI 总结 ───────────────────────────────────────────────────
 def _extract_text(data_bytes, filename):
+    """返回提取的文本；不支持的格式返回 None；解析失败抛出异常。"""
     ext = Path(filename).suffix.lower()
-    try:
-        if ext == '.pdf':
-            import pypdf
-            reader = pypdf.PdfReader(io.BytesIO(data_bytes))
-            return '\n'.join(p.extract_text() or '' for p in reader.pages)
-        elif ext == '.docx':
-            from docx import Document
-            doc = Document(io.BytesIO(data_bytes))
-            return '\n'.join(p.text for p in doc.paragraphs)
-        elif ext == '.pptx':
-            from pptx import Presentation
-            prs = Presentation(io.BytesIO(data_bytes))
-            parts = []
-            for slide in prs.slides:
-                for shape in slide.shapes:
-                    if hasattr(shape, 'text') and shape.text.strip():
-                        parts.append(shape.text)
-            return '\n'.join(parts)
-        elif ext in ('.txt', '.md', '.csv'):
-            return data_bytes.decode('utf-8', errors='ignore')
-    except Exception:
-        pass
-    return ''
+    if ext == '.pdf':
+        import pypdf
+        reader = pypdf.PdfReader(io.BytesIO(data_bytes))
+        return '\n'.join(p.extract_text() or '' for p in reader.pages)
+    elif ext == '.docx':
+        from docx import Document
+        doc = Document(io.BytesIO(data_bytes))
+        return '\n'.join(p.text for p in doc.paragraphs)
+    elif ext == '.pptx':
+        from pptx import Presentation
+        prs = Presentation(io.BytesIO(data_bytes))
+        parts = [shape.text for slide in prs.slides
+                 for shape in slide.shapes if hasattr(shape, 'text') and shape.text.strip()]
+        return '\n'.join(parts)
+    elif ext in ('.txt', '.md', '.csv'):
+        return data_bytes.decode('utf-8', errors='ignore')
+    return None  # 不支持的格式
 
 @app.route('/api/summarize/<upload_id>', methods=['POST'])
 @login_required
@@ -737,9 +732,17 @@ def summarize_upload(upload_id):
     if not api_key:
         return jsonify({'error': 'AI 功能未配置，请在 Render 环境变量中添加 SILICONFLOW_API_KEY'}), 503
 
-    text = _extract_text(base64.b64decode(row['data']), row['filename'])
+    try:
+        text = _extract_text(base64.b64decode(row['data']), row['filename'])
+    except ImportError as e:
+        return jsonify({'error': f'服务器依赖库缺失，请稍候重试（{e}）'}), 503
+    except Exception as e:
+        return jsonify({'error': f'文件解析出错：{e}'}), 400
+
+    if text is None:
+        return jsonify({'error': '该文件格式不支持 AI 总结，仅支持 PDF、Word(.docx)、PPT(.pptx)、TXT、MD'}), 400
     if not text.strip():
-        return jsonify({'error': '无法提取文本，仅支持 PDF、Word(.docx)、PPT(.pptx)、TXT、MD 格式'}), 400
+        return jsonify({'error': '未能从文件中提取到文字，可能是扫描件或纯图片 PDF，暂不支持'}), 400
 
     text = text[:10000]  # 截断防止超出 token 限制
 
