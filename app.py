@@ -20,9 +20,8 @@ from requests_oauthlib import OAuth2Session
 app = Flask(__name__)
 
 BASE_DIR        = Path(__file__).parent
-# 生产环境使用 /data 持久化磁盘，本地使用项目目录
-_DATA_DIR       = Path(os.environ.get('RENDER_DISK_PATH', str(BASE_DIR)))
-DB_PATH         = _DATA_DIR / 'journal.db'
+DB_PATH         = BASE_DIR / 'journal.db'
+DATABASE_URL    = os.environ.get('DATABASE_URL', '').replace('postgres://', 'postgresql://')
 GOOGLE_CREDS    = BASE_DIR / 'client_secrets.json'
 MS_CREDS        = BASE_DIR / 'microsoft_secrets.json'
 
@@ -58,69 +57,86 @@ ACTIVITY_CATEGORIES = [
 MOODS = ['😫', '😟', '😐', '😊', '😄']
 
 # ── Database ──────────────────────────────────────────────────
+class _DB:
+    """统一 SQLite（?）和 PostgreSQL（%s）的参数占位符，保持接口一致。"""
+    def __init__(self, conn, pg=False):
+        self._c  = conn
+        self._pg = pg
+
+    def execute(self, sql, params=()):
+        if self._pg:
+            sql = sql.replace('?', '%s')
+        cur = self._c.cursor()
+        cur.execute(sql, params)
+        return cur
+
+    def commit(self):    self._c.commit()
+    def rollback(self):  self._c.rollback()
+    def close(self):     self._c.close()
+
+
+def _open_db():
+    if DATABASE_URL:
+        import psycopg2, psycopg2.extras
+        conn = psycopg2.connect(DATABASE_URL,
+                                cursor_factory=psycopg2.extras.RealDictCursor)
+        return _DB(conn, pg=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    return _DB(conn, pg=False)
+
+
 def get_db():
     if 'db' not in g:
-        g.db = sqlite3.connect(str(DB_PATH))
-        g.db.row_factory = sqlite3.Row
+        g.db = _open_db()
     return g.db
+
 
 @app.teardown_appcontext
 def close_db(e=None):
     db = g.pop('db', None)
     if db: db.close()
 
+
 def init_db():
-    db = sqlite3.connect(str(DB_PATH))
-    # 1. 建表
-    db.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
-            id          TEXT PRIMARY KEY,
-            email       TEXT UNIQUE NOT NULL,
-            name        TEXT NOT NULL,
-            password    TEXT,
-            provider    TEXT DEFAULT 'local',
-            provider_id TEXT DEFAULT '',
-            avatar      TEXT DEFAULT '',
-            created_at  TEXT,
-            last_login  TEXT
-        );
-        CREATE TABLE IF NOT EXISTS entries (
-            id           TEXT PRIMARY KEY,
-            date         TEXT NOT NULL,
-            title        TEXT NOT NULL,
-            study_hours  REAL DEFAULT 0,
-            mood         INTEGER DEFAULT 3,
-            activities   TEXT DEFAULT '[]',
-            reflections  TEXT DEFAULT '',
-            insights     TEXT DEFAULT '[]',
-            tags         TEXT DEFAULT '[]',
-            created_at   TEXT,
-            updated_at   TEXT
-        );
-        CREATE TABLE IF NOT EXISTS drive_links (
-            id        TEXT PRIMARY KEY,
-            entry_id  TEXT NOT NULL,
-            file_id   TEXT NOT NULL,
-            file_name TEXT NOT NULL,
-            file_url  TEXT NOT NULL,
-            mime_type TEXT DEFAULT '',
-            linked_at TEXT,
-            FOREIGN KEY (entry_id) REFERENCES entries(id) ON DELETE CASCADE
-        );
-    """)
-    # 2. 迁移：添加新列（旧库兼容）
+    db = _open_db()
+    # 建表（user_id 已包含在初始 schema 中，新库无需 ALTER TABLE）
     for sql in [
-        "ALTER TABLE entries ADD COLUMN user_id TEXT",
-        "ALTER TABLE drive_links ADD COLUMN user_id TEXT",
+        """CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL, password TEXT,
+            provider TEXT DEFAULT 'local', provider_id TEXT DEFAULT '',
+            avatar TEXT DEFAULT '', created_at TEXT, last_login TEXT)""",
+        """CREATE TABLE IF NOT EXISTS entries (
+            id TEXT PRIMARY KEY, user_id TEXT,
+            date TEXT NOT NULL, title TEXT NOT NULL,
+            study_hours REAL DEFAULT 0, mood INTEGER DEFAULT 3,
+            activities TEXT DEFAULT '[]', reflections TEXT DEFAULT '',
+            insights TEXT DEFAULT '[]', tags TEXT DEFAULT '[]',
+            created_at TEXT, updated_at TEXT)""",
+        """CREATE TABLE IF NOT EXISTS drive_links (
+            id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, user_id TEXT,
+            file_id TEXT NOT NULL, file_name TEXT NOT NULL,
+            file_url TEXT NOT NULL, mime_type TEXT DEFAULT '', linked_at TEXT)""",
     ]:
-        try: db.execute(sql)
-        except: pass
-    # 3. 建索引（确保列已存在）
-    db.executescript("""
-        CREATE INDEX IF NOT EXISTS idx_entries_user ON entries(user_id, date DESC);
-        CREATE INDEX IF NOT EXISTS idx_drive_entry  ON drive_links(entry_id);
-    """)
+        db.execute(sql)
     db.commit()
+    # SQLite 旧库迁移（本地开发用）
+    if not db._pg:
+        for sql in [
+            "ALTER TABLE entries ADD COLUMN user_id TEXT",
+            "ALTER TABLE drive_links ADD COLUMN user_id TEXT",
+        ]:
+            try: db.execute(sql); db.commit()
+            except: pass
+    # 建索引
+    for sql in [
+        "CREATE INDEX IF NOT EXISTS idx_entries_user ON entries(user_id, date DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_drive_entry  ON drive_links(entry_id)",
+    ]:
+        try: db.execute(sql); db.commit()
+        except Exception:
+            if db._pg: db.rollback()
     db.close()
 
 # ── Helpers ───────────────────────────────────────────────────
