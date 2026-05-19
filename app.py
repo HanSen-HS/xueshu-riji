@@ -176,7 +176,10 @@ def current_user():
     if not uid:
         return None
     row = get_db().execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
-    return dict(row) if row else None
+    if row:
+        return dict(row)
+    session.clear()  # user_id 无效（旧数据库残留），清除 session
+    return None
 
 def login_required(f):
     @wraps(f)
