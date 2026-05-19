@@ -25,6 +25,24 @@ DATABASE_URL    = os.environ.get('DATABASE_URL', '').replace('postgres://', 'pos
 GOOGLE_CREDS    = BASE_DIR / 'client_secrets.json'
 MS_CREDS        = BASE_DIR / 'microsoft_secrets.json'
 
+def _google_client_config():
+    """从环境变量或本地文件读取 Google OAuth 配置。"""
+    env_val = os.environ.get('GOOGLE_CLIENT_SECRETS', '')
+    if env_val:
+        return json.loads(env_val)
+    if GOOGLE_CREDS.exists():
+        return json.loads(GOOGLE_CREDS.read_text())
+    return None
+
+def _has_google():
+    return bool(_google_client_config())
+
+def _make_flow(state=None):
+    cfg = _google_client_config()
+    return Flow.from_client_config(cfg, scopes=GOOGLE_SCOPES,
+        redirect_uri=url_for('oauth2callback', _external=True),
+        state=state)
+
 # Secret key: 优先用环境变量（生产环境 Render 注入），其次用文件持久化（本地）
 if os.environ.get('SECRET_KEY'):
     app.secret_key = os.environ['SECRET_KEY']
@@ -229,7 +247,7 @@ def login_page():
             return redirect(url_for('index'))
         flash('邮箱或密码错误', 'error')
     return render_template('login.html',
-        has_google=GOOGLE_CREDS.exists(),
+        has_google=_has_google(),
         has_ms=MS_CREDS.exists())
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -273,14 +291,12 @@ def logout():
 # ── Google OAuth ──────────────────────────────────────────────
 @app.route('/auth/google')
 def google_login():
-    if not GOOGLE_CREDS.exists():
+    if not _has_google():
         flash('Google OAuth 未配置，请先完成设置', 'error')
         return redirect(url_for('login_page'))
     v, c = _pkce_pair()
     session['code_verifier'] = v
-    flow = Flow.from_client_secrets_file(
-        str(GOOGLE_CREDS), scopes=GOOGLE_SCOPES,
-        redirect_uri=url_for('oauth2callback', _external=True))
+    flow = _make_flow()
     auth_url, state = flow.authorization_url(
         access_type='offline', prompt='consent',
         code_challenge=c, code_challenge_method='S256')
@@ -293,9 +309,7 @@ def oauth2callback():
     if not state:
         flash('登录状态异常', 'error')
         return redirect(url_for('login_page'))
-    flow = Flow.from_client_secrets_file(
-        str(GOOGLE_CREDS), scopes=GOOGLE_SCOPES, state=state,
-        redirect_uri=url_for('oauth2callback', _external=True))
+    flow = _make_flow(state=state)
     try:
         flow.fetch_token(authorization_response=request.url, code_verifier=verifier)
     except Exception as e:
@@ -364,14 +378,14 @@ def ms_callback():
 @login_required
 def drive_connect():
     """已登录用户额外连接 Google Drive"""
-    if not GOOGLE_CREDS.exists():
+    if not _has_google():
         flash('Google OAuth 未配置', 'error')
         return redirect(url_for('index'))
     v, c = _pkce_pair()
     session['code_verifier'] = v
     session['drive_connect_mode'] = True      # 标记：仅连接 Drive，不切换账号
-    flow = Flow.from_client_secrets_file(
-        str(GOOGLE_CREDS), scopes=GOOGLE_SCOPES,
+    flow = Flow.from_client_config(
+        _google_client_config(), scopes=GOOGLE_SCOPES,
         redirect_uri=url_for('oauth2callback', _external=True))
     auth_url, state = flow.authorization_url(
         access_type='offline', prompt='consent',
@@ -578,7 +592,7 @@ def unlink_drive(entry_id, link_id):
 @app.route('/setup')
 def setup():
     return render_template('setup.html',
-        has_google=GOOGLE_CREDS.exists(),
+        has_google=_has_google(),
         has_ms=MS_CREDS.exists(),
         app_dir=str(BASE_DIR))
 
