@@ -1,6 +1,38 @@
 {% extends "base.html" %}
 {% block title %}排行榜 · 学术日志{% endblock %}
 
+{% macro user_row(u, rank, max_h) %}
+<div class="lb-row {% if u.id == me %}lb-me{% endif %}">
+  <div class="lb-rank">
+    {% if rank == 1 %}🥇
+    {% elif rank == 2 %}🥈
+    {% elif rank == 3 %}🥉
+    {% else %}<span class="lb-rank-num">{{ rank }}</span>
+    {% endif %}
+  </div>
+  <div class="lb-avatar">
+    {% if u.avatar %}
+      <img src="{{ u.avatar }}" class="avatar" alt="">
+    {% else %}
+      <div class="avatar-placeholder">{{ u.name[0] }}</div>
+    {% endif %}
+  </div>
+  <div class="lb-info">
+    <span class="lb-name">{{ u.name }}{% if u.id == me %} <span class="lb-me-tag">我</span>{% endif %}</span>
+    <span class="lb-entries">{{ u.entry_count }} 篇日志</span>
+  </div>
+  <div class="lb-hours">
+    <span class="lb-hours-val">{{ "%.1f"|format(u.total_hours) }}</span>
+    <span class="lb-hours-unit">小时</span>
+  </div>
+  <div class="lb-bar-wrap">
+    <div class="lb-bar" style="width:{{ [((u.total_hours / max_h) * 100)|round|int, 4]|max }}%"></div>
+  </div>
+  <button class="lb-expand-btn" onclick="toggleEntries(this,'{{ u.id }}')" title="查看日志">▾ 日志</button>
+</div>
+<div class="lb-detail-panel" id="detail-{{ u.id }}" style="display:none"></div>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
   <h1 class="page-title">🏆 学习排行榜</h1>
@@ -17,35 +49,7 @@
   {% if monthly %}
     <div class="lb-list">
       {% for u in monthly %}
-      {% set rank = loop.index %}
-      <div class="lb-row {% if u.id == me %}lb-me{% endif %}">
-        <div class="lb-rank">
-          {% if rank == 1 %}🥇
-          {% elif rank == 2 %}🥈
-          {% elif rank == 3 %}🥉
-          {% else %}<span class="lb-rank-num">{{ rank }}</span>
-          {% endif %}
-        </div>
-        <div class="lb-avatar">
-          {% if u.avatar %}
-            <img src="{{ u.avatar }}" class="avatar" alt="">
-          {% else %}
-            <div class="avatar-placeholder">{{ u.name[0] }}</div>
-          {% endif %}
-        </div>
-        <div class="lb-info">
-          <span class="lb-name">{{ u.name }}{% if u.id == me %} <span class="lb-me-tag">我</span>{% endif %}</span>
-          <span class="lb-entries">{{ u.entry_count }} 篇日志</span>
-        </div>
-        <div class="lb-hours">
-          <span class="lb-hours-val">{{ "%.1f"|format(u.total_hours) }}</span>
-          <span class="lb-hours-unit">小时</span>
-        </div>
-        <div class="lb-bar-wrap">
-          {% set max_h = monthly[0].total_hours if monthly[0].total_hours > 0 else 1 %}
-          <div class="lb-bar" style="width:{{ [((u.total_hours / max_h) * 100)|round|int, 4]|max }}%"></div>
-        </div>
-      </div>
+        {{ user_row(u, loop.index, monthly[0].total_hours if monthly[0].total_hours > 0 else 1) }}
       {% endfor %}
     </div>
   {% else %}
@@ -59,35 +63,7 @@
   {% if all_time %}
     <div class="lb-list">
       {% for u in all_time %}
-      {% set rank = loop.index %}
-      <div class="lb-row {% if u.id == me %}lb-me{% endif %}">
-        <div class="lb-rank">
-          {% if rank == 1 %}🥇
-          {% elif rank == 2 %}🥈
-          {% elif rank == 3 %}🥉
-          {% else %}<span class="lb-rank-num">{{ rank }}</span>
-          {% endif %}
-        </div>
-        <div class="lb-avatar">
-          {% if u.avatar %}
-            <img src="{{ u.avatar }}" class="avatar" alt="">
-          {% else %}
-            <div class="avatar-placeholder">{{ u.name[0] }}</div>
-          {% endif %}
-        </div>
-        <div class="lb-info">
-          <span class="lb-name">{{ u.name }}{% if u.id == me %} <span class="lb-me-tag">我</span>{% endif %}</span>
-          <span class="lb-entries">{{ u.entry_count }} 篇日志</span>
-        </div>
-        <div class="lb-hours">
-          <span class="lb-hours-val">{{ "%.1f"|format(u.total_hours) }}</span>
-          <span class="lb-hours-unit">小时</span>
-        </div>
-        <div class="lb-bar-wrap">
-          {% set max_h = all_time[0].total_hours if all_time[0].total_hours > 0 else 1 %}
-          <div class="lb-bar" style="width:{{ [((u.total_hours / max_h) * 100)|round|int, 4]|max }}%"></div>
-        </div>
-      </div>
+        {{ user_row(u, loop.index, all_time[0].total_hours if all_time[0].total_hours > 0 else 1) }}
       {% endfor %}
     </div>
   {% else %}
@@ -103,6 +79,50 @@ function switchTab(tab) {
   document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + tab).style.display = 'block';
   event.target.classList.add('active');
+}
+
+const _cache = {};
+
+function toggleEntries(btn, userId) {
+  // find the panel — it immediately follows the row that contains this button
+  const panel = btn.closest('.lb-row').nextElementSibling;
+  if (panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    btn.textContent = '▾ 日志';
+    return;
+  }
+  btn.textContent = '▴ 日志';
+  if (_cache[userId]) { renderPanel(panel, _cache[userId]); return; }
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="lb-detail-loading">加载中…</div>';
+  fetch(`/api/user/${userId}/entries`)
+    .then(r => r.json())
+    .then(d => { _cache[userId] = d.entries; renderPanel(panel, d.entries); })
+    .catch(() => { panel.innerHTML = '<div class="lb-detail-loading">加载失败</div>'; });
+}
+
+function renderPanel(panel, entries) {
+  panel.style.display = 'block';
+  if (!entries || !entries.length) {
+    panel.innerHTML = '<div class="lb-detail-loading">暂无日志</div>';
+    return;
+  }
+  panel.innerHTML = entries.map(e => {
+    const files = e.files && e.files.length
+      ? `<span class="lb-entry-files">📎 ${e.files.map(escHtml).join('、')}</span>`
+      : '';
+    return `<div class="lb-entry-item">
+      <span class="lb-entry-date">${e.date}</span>
+      <span class="lb-entry-title">${escHtml(e.title || '无标题')}</span>
+      <span class="lb-entry-hours">⏱ ${e.study_hours || 0} h</span>
+      ${files}
+    </div>`;
+  }).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 </script>
 {% endblock %}

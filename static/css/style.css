@@ -396,6 +396,22 @@ a:hover { text-decoration: underline; }
 .lb-bar { height:100%; background:linear-gradient(90deg, var(--primary), var(--accent));
           border-radius:4px; transition:width .4s ease; }
 
+.lb-expand-btn { margin-left:auto; background:transparent; border:1px solid rgba(0,0,0,.12);
+                 color:var(--text-2); font-size:12px; padding:3px 10px; border-radius:5px;
+                 cursor:pointer; white-space:nowrap; flex-shrink:0; transition:all .15s; }
+.lb-expand-btn:hover { background:var(--primary-light); color:var(--primary); border-color:var(--primary); }
+
+.lb-detail-panel { background:var(--bg); border-left:3px solid var(--primary-light);
+                   margin:0 0 4px 52px; border-radius:0 0 8px 8px; overflow:hidden; }
+.lb-detail-loading { padding:10px 16px; color:var(--text-3); font-size:13px; }
+.lb-entry-item { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px;
+                 padding:8px 16px; border-bottom:1px solid var(--border); font-size:13px; }
+.lb-entry-item:last-child { border-bottom:none; }
+.lb-entry-date { color:var(--text-3); font-size:12px; white-space:nowrap; }
+.lb-entry-title { font-weight:600; color:var(--text); flex:1; min-width:80px; }
+.lb-entry-hours { color:var(--accent); font-weight:500; white-space:nowrap; }
+.lb-entry-files { color:var(--text-2); font-size:12px; width:100%; padding-left:2px; }
+
 /* ── AI 总结 ─────────────────────────────────────────────────── */
 .btn-ai-sum { background:linear-gradient(135deg,#6c63ff,#3ecfcf); color:#fff;
               border:none; border-radius:5px; font-size:11px; padding:2px 8px;

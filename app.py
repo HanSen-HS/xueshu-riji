@@ -848,6 +848,30 @@ def leaderboard():
         monthly=[dict(r) for r in monthly],
         this_month=this_month, me=me)
 
+# ── 公开日志列表（排行榜使用）────────────────────────────────────
+@app.route('/api/user/<user_id>/entries')
+@login_required
+def user_entries_public(user_id):
+    db = get_db()
+    rows = db.execute(
+        "SELECT id, date, title, study_hours FROM entries WHERE user_id=? ORDER BY date DESC",
+        (user_id,)
+    ).fetchall()
+    result = []
+    for r in rows:
+        uploads = db.execute(
+            "SELECT filename FROM uploads WHERE entry_id=?", (r['id'],)
+        ).fetchall()
+        drives = db.execute(
+            "SELECT file_name FROM drive_links WHERE entry_id=?", (r['id'],)
+        ).fetchall()
+        files = [u['filename'] for u in uploads] + [d['file_name'] for d in drives]
+        result.append({
+            'date': r['date'], 'title': r['title'],
+            'study_hours': r['study_hours'], 'files': files
+        })
+    return jsonify({'entries': result})
+
 # ── Setup ─────────────────────────────────────────────────────
 @app.route('/setup')
 def setup():
