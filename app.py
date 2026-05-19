@@ -29,14 +29,19 @@ MS_CREDS        = BASE_DIR / 'microsoft_secrets.json'
 
 def _google_client_config():
     """从环境变量或本地文件读取 Google OAuth 配置。"""
-    env_val = os.environ.get('GOOGLE_CLIENT_SECRETS', '').strip()
-    if env_val:
-        # 清除粘贴时可能混入的控制字符/换行
-        env_val = ''.join(c for c in env_val if ord(c) >= 32 or c in '\t')
-        try:
-            return json.loads(env_val)
-        except json.JSONDecodeError:
-            return None
+    # 优先用独立环境变量（不依赖 JSON 解析）
+    cid = os.environ.get('GOOGLE_CLIENT_ID', '').strip()
+    csec = os.environ.get('GOOGLE_CLIENT_SECRET', '').strip()
+    if cid and csec:
+        return {"web": {
+            "client_id": cid,
+            "client_secret": csec,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "redirect_uris": ["https://xueshu-riji.onrender.com/oauth2callback"],
+        }}
+    # 本地开发：从文件读取
     if GOOGLE_CREDS.exists():
         return json.loads(GOOGLE_CREDS.read_text())
     return None
