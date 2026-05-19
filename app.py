@@ -697,6 +697,69 @@ def delete_upload(upload_id):
     get_db().commit()
     return jsonify({'success': True})
 
+# ── AI 总结 ───────────────────────────────────────────────────
+def _extract_text(data_bytes, filename):
+    ext = Path(filename).suffix.lower()
+    try:
+        if ext == '.pdf':
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(data_bytes))
+            return '\n'.join(p.extract_text() or '' for p in reader.pages)
+        elif ext == '.docx':
+            from docx import Document
+            doc = Document(io.BytesIO(data_bytes))
+            return '\n'.join(p.text for p in doc.paragraphs)
+        elif ext == '.pptx':
+            from pptx import Presentation
+            prs = Presentation(io.BytesIO(data_bytes))
+            parts = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if hasattr(shape, 'text') and shape.text.strip():
+                        parts.append(shape.text)
+            return '\n'.join(parts)
+        elif ext in ('.txt', '.md', '.csv'):
+            return data_bytes.decode('utf-8', errors='ignore')
+    except Exception:
+        pass
+    return ''
+
+@app.route('/api/summarize/<upload_id>', methods=['POST'])
+@login_required
+def summarize_upload(upload_id):
+    uid = session['user_id']
+    row = get_db().execute("SELECT * FROM uploads WHERE id=? AND user_id=?",
+                           (upload_id, uid)).fetchone()
+    if not row:
+        return jsonify({'error': '文件不存在'}), 404
+
+    api_key = os.environ.get('SILICONFLOW_API_KEY', '').strip()
+    if not api_key:
+        return jsonify({'error': 'AI 功能未配置，请在 Render 环境变量中添加 SILICONFLOW_API_KEY'}), 503
+
+    text = _extract_text(base64.b64decode(row['data']), row['filename'])
+    if not text.strip():
+        return jsonify({'error': '无法提取文本，仅支持 PDF、Word(.docx)、PPT(.pptx)、TXT、MD 格式'}), 400
+
+    text = text[:10000]  # 截断防止超出 token 限制
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url='https://api.siliconflow.cn/v1')
+        resp = client.chat.completions.create(
+            model='deepseek-ai/DeepSeek-V3',
+            messages=[{'role': 'user', 'content':
+                f'请对以下文档内容做简洁的学术总结，用中文输出，格式如下：\n'
+                f'【核心主题】（1~2句）\n'
+                f'【主要内容】（3~5条，每条以• 开头）\n'
+                f'【关键结论】（1~2句）\n\n文档内容：\n{text}'}],
+            max_tokens=700,
+            temperature=0.3,
+        )
+        return jsonify({'success': True, 'summary': resp.choices[0].message.content})
+    except Exception as e:
+        return jsonify({'error': f'AI 请求失败：{e}'}), 500
+
 # ── 排行榜 ────────────────────────────────────────────────────
 @app.route('/leaderboard')
 @login_required

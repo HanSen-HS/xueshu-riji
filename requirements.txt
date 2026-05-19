@@ -8,3 +8,7 @@ google-api-python-client>=2.120.0
 requests
 requests-oauthlib
 werkzeug>=3.0.0
+openai>=1.0.0
+pypdf>=3.0.0
+python-docx>=1.0.0
+python-pptx>=0.6.21

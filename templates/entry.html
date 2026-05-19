@@ -140,6 +140,10 @@
             <a href="{{ url_for('download_file', upload_id=u.id) }}" target="_blank"
                class="drive-item-name">{{ u.filename }}</a>
             <span style="font-size:11px;color:#888">{{ (u.size/1024)|round(1) }}KB</span>
+            {% if u.filename.rsplit('.',1)[-1].lower() in ['pdf','docx','pptx','txt','md'] %}
+            <button type="button" class="btn-ai-sum"
+                    onclick="summarizeFile('{{ u.id }}','{{ u.filename|e }}')">✨ AI总结</button>
+            {% endif %}
             {% if current_user %}
             <button type="button" class="btn-remove-link"
                     onclick="deleteUpload('{{ u.id }}')">✕</button>
@@ -150,6 +154,19 @@
           <p class="hint-text" id="noUploadsMsg">暂无本地文档</p>
         {% endif %}
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI 总结浮层 -->
+<div id="aiModal" class="ai-modal-overlay" style="display:none" onclick="if(event.target===this)closeAiModal()">
+  <div class="ai-modal-box">
+    <div class="ai-modal-header">
+      <span id="aiModalFile" class="ai-modal-filename"></span>
+      <button class="ai-modal-close" onclick="closeAiModal()">✕</button>
+    </div>
+    <div id="aiModalBody" class="ai-modal-body">
+      <div class="ai-loading"><span class="ai-spinner"></span> DeepSeek 分析中…</div>
     </div>
   </div>
 </div>
@@ -249,6 +266,7 @@ function uploadFile(input) {
       input.value = '';
       if (!data.success) { alert(data.error || '上传失败'); return; }
       document.getElementById('noUploadsMsg')?.remove();
+      const summable = /\.(pdf|docx|pptx|txt|md)$/i.test(data.filename);
       const item = document.createElement('div');
       item.className = 'linked-drive-item';
       item.id = `up-${data.id}`;
@@ -256,9 +274,40 @@ function uploadFile(input) {
         <span class="drive-item-icon">📎</span>
         <a href="/upload/${data.id}" target="_blank" class="drive-item-name">${escHtml(data.filename)}</a>
         <span style="font-size:11px;color:#888">${(data.size/1024).toFixed(1)}KB</span>
+        ${summable ? `<button type="button" class="btn-ai-sum" onclick="summarizeFile('${data.id}','${escHtml(data.filename)}')">✨ AI总结</button>` : ''}
         <button type="button" class="btn-remove-link" onclick="deleteUpload('${data.id}')">✕</button>`;
       document.getElementById('uploadList').appendChild(item);
     }).catch(() => { prog.style.display='none'; alert('上传失败，请重试'); });
+}
+
+function summarizeFile(uploadId, filename) {
+  document.getElementById('aiModalFile').textContent = '✨ ' + filename;
+  document.getElementById('aiModalBody').innerHTML =
+    '<div class="ai-loading"><span class="ai-spinner"></span> DeepSeek 分析中…</div>';
+  document.getElementById('aiModal').style.display = 'flex';
+
+  fetch(`/api/summarize/${uploadId}`, {method:'POST'})
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        document.getElementById('aiModalBody').innerHTML =
+          `<p class="ai-error">⚠️ ${escHtml(data.error)}</p>`;
+      } else {
+        const html = escHtml(data.summary)
+          .replace(/【(.+?)】/g, '<strong>【$1】</strong>')
+          .replace(/\n/g, '<br>');
+        document.getElementById('aiModalBody').innerHTML =
+          `<div class="ai-summary">${html}</div>`;
+      }
+    })
+    .catch(() => {
+      document.getElementById('aiModalBody').innerHTML =
+        '<p class="ai-error">⚠️ 请求失败，请稍后重试</p>';
+    });
+}
+
+function closeAiModal() {
+  document.getElementById('aiModal').style.display = 'none';
 }
 
 function deleteUpload(uploadId) {

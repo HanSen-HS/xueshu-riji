@@ -395,3 +395,33 @@ a:hover { text-decoration: underline; }
 .lb-bar-wrap { background:var(--bg); border-radius:4px; height:8px; overflow:hidden; }
 .lb-bar { height:100%; background:linear-gradient(90deg, var(--primary), var(--accent));
           border-radius:4px; transition:width .4s ease; }
+
+/* ── AI 总结 ─────────────────────────────────────────────────── */
+.btn-ai-sum { background:linear-gradient(135deg,#6c63ff,#3ecfcf); color:#fff;
+              border:none; border-radius:5px; font-size:11px; padding:2px 8px;
+              cursor:pointer; white-space:nowrap; transition:opacity .15s; }
+.btn-ai-sum:hover { opacity:.85; }
+
+.ai-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45);
+                    display:flex; align-items:center; justify-content:center;
+                    z-index:1000; padding:16px; }
+.ai-modal-box { background:#fff; border-radius:14px; width:100%; max-width:540px;
+                max-height:80vh; display:flex; flex-direction:column;
+                box-shadow:0 8px 32px rgba(0,0,0,.18); }
+.ai-modal-header { display:flex; align-items:center; justify-content:space-between;
+                   padding:14px 18px; border-bottom:1px solid var(--border); }
+.ai-modal-filename { font-size:14px; font-weight:600; color:var(--text);
+                     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ai-modal-close { background:none; border:none; font-size:18px; color:var(--text-3);
+                  cursor:pointer; line-height:1; padding:0 4px; }
+.ai-modal-close:hover { color:var(--text); }
+.ai-modal-body { padding:18px; overflow-y:auto; flex:1; }
+.ai-loading { display:flex; align-items:center; gap:10px; color:var(--text-2);
+              font-size:14px; padding:20px 0; justify-content:center; }
+.ai-spinner { display:inline-block; width:18px; height:18px; border:2px solid var(--border);
+              border-top-color:var(--primary); border-radius:50%;
+              animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.ai-summary { font-size:14px; line-height:1.8; color:var(--text); }
+.ai-summary strong { color:var(--primary-dark); }
+.ai-error { color:var(--danger); font-size:14px; padding:12px 0; }
