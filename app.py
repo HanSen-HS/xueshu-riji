@@ -788,26 +788,47 @@ def summarize_upload(upload_id):
                 return jsonify({'error': '扫描版 PDF 支持正在部署，请稍候几分钟重试'}), 503
 
             doc = fitz.open(stream=data_bytes, filetype='pdf')
+            # 只取前3页，0.65x 缩放，降低图像体积防止超时
             content = [{'type': 'text', 'text':
-                '以下是一篇学术论文的扫描页面，请用中文做简洁的学术总结，格式：\n'
+                'These are scanned pages of an academic paper. '
+                'Please summarize in Chinese with this format:\n'
                 '【核心主题】（1~2句）\n'
                 '【主要内容】（3~5条，每条以• 开头）\n'
                 '【关键结论】（1~2句）'}]
             for i, page in enumerate(doc):
-                if i >= 5:
+                if i >= 3:
                     break
-                pix = page.get_pixmap(matrix=fitz.Matrix(1.0, 1.0))
+                pix = page.get_pixmap(matrix=fitz.Matrix(0.65, 0.65))
                 content.append({'type': 'image_url', 'image_url': {
                     'url': f'data:image/png;base64,{base64.b64encode(pix.tobytes("png")).decode()}'
                 }})
 
             from openai import OpenAI as _OAI
             groq_client = _OAI(api_key=groq_key, base_url='https://api.groq.com/openai/v1')
-            resp = groq_client.chat.completions.create(
-                model='meta-llama/llama-4-scout-17b-16e-instruct',
-                messages=[{'role': 'user', 'content': content}],
-                max_tokens=700, temperature=0.3,
-            )
+            # llama-3.2-11b-vision-preview 是 Groq 免费视觉模型
+            _groq_vision_models = [
+                'llama-3.2-11b-vision-preview',
+                'llama-3.2-90b-vision-preview',
+                'meta-llama/llama-4-scout-17b-16e-instruct',
+            ]
+            resp = None
+            last_err = None
+            for vm in _groq_vision_models:
+                try:
+                    resp = groq_client.chat.completions.create(
+                        model=vm,
+                        messages=[{'role': 'user', 'content': content}],
+                        max_tokens=700, temperature=0.3,
+                    )
+                    break
+                except Exception as ve:
+                    last_err = ve
+                    err_str = str(ve)
+                    if any(x in err_str for x in ('404', '400', 'not found', 'does not exist', 'disabled')):
+                        continue
+                    raise
+            if resp is None:
+                raise last_err
 
         return jsonify({'success': True, 'summary': resp.choices[0].message.content})
     except Exception as e:

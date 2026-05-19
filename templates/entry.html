@@ -287,7 +287,10 @@ function summarizeFile(uploadId, filename) {
   document.getElementById('aiModal').style.display = 'flex';
 
   fetch(`/api/summarize/${uploadId}`, {method:'POST'})
-    .then(r => r.json())
+    .then(r => r.text().then(t => {
+      try { return JSON.parse(t); }
+      catch { throw new Error(`服务器错误 ${r.status}：${t.slice(0,200)}`); }
+    }))
     .then(data => {
       if (data.error) {
         document.getElementById('aiModalBody').innerHTML =
@@ -300,9 +303,9 @@ function summarizeFile(uploadId, filename) {
           `<div class="ai-summary">${html}</div>`;
       }
     })
-    .catch(() => {
+    .catch(err => {
       document.getElementById('aiModalBody').innerHTML =
-        '<p class="ai-error">⚠️ 请求失败，请稍后重试</p>';
+        `<p class="ai-error">⚠️ ${escHtml(String(err))}</p>`;
     });
 }
 
