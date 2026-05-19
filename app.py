@@ -702,6 +702,13 @@ def _extract_text(data_bytes, filename):
     """返回提取的文本；不支持的格式返回 None；解析失败抛出异常。"""
     ext = Path(filename).suffix.lower()
     if ext == '.pdf':
+        # pdfplumber 对中文 PDF 兼容性更好，pypdf 作为兜底
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(data_bytes)) as pdf:
+                return '\n'.join(p.extract_text() or '' for p in pdf.pages)
+        except ImportError:
+            pass
         import pypdf
         reader = pypdf.PdfReader(io.BytesIO(data_bytes))
         return '\n'.join(p.extract_text() or '' for p in reader.pages)
