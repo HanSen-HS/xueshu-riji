@@ -492,6 +492,16 @@ def create_entry():
          data.get('reflections',''),
          json.dumps(insights, ensure_ascii=False),
          json.dumps(tags, ensure_ascii=False), now, now))
+    # 保存本地上传文件
+    for f in request.files.getlist('local_files[]'):
+        if not f or not f.filename: continue
+        ext = Path(secure_filename(f.filename)).suffix.lower()
+        if ext not in ALLOWED_EXTS: continue
+        raw = f.read()
+        if len(raw) > 20 * 1024 * 1024: continue
+        get_db().execute("INSERT INTO uploads VALUES (?,?,?,?,?,?,?,?)",
+            (str(uuid.uuid4()), eid, uid, secure_filename(f.filename),
+             f.mimetype, len(raw), base64.b64encode(raw).decode(), now))
     # 保存新建时关联的 Drive 文档
     fids   = request.form.getlist('drive_file_id[]')
     fnames = request.form.getlist('drive_file_name[]')

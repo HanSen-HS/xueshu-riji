@@ -13,7 +13,7 @@
   {% endif %}
 </div>
 
-<form method="POST"
+<form method="POST" enctype="multipart/form-data"
       action="{{ url_for('update_entry', entry_id=entry.id) if entry else url_for('create_entry') }}"
       id="entryForm">
 
@@ -145,6 +145,19 @@
             <a href="{{ url_for('drive_connect') }}" class="btn btn-google-sm">连接 Drive</a>
           </div>
         {% endif %}
+
+        <!-- 本地文件上传（分隔线） -->
+        <div style="border-top:1px solid var(--border);margin:14px 0 12px"></div>
+        <div class="form-section-header" style="margin-bottom:8px">
+          <span class="form-section-title" style="font-size:14px">📎 本地文档</span>
+          <label class="btn btn-outline-sm" for="localFiles" style="cursor:pointer">＋ 选择文件</label>
+        </div>
+        <input type="file" id="localFiles" name="local_files[]" multiple style="display:none"
+               accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.jpg,.jpeg,.png,.zip"
+               onchange="previewLocalFiles(this)">
+        <div id="localFilePreview" class="linked-docs" style="margin-top:4px">
+          <p class="hint-text" id="noLocalMsg">未选择文件（保存时一起上传）</p>
+        </div>
       </div>
 
       <!-- 标签 -->
@@ -292,6 +305,27 @@ function renderLinkedDocs() {
 function escHtml(str) {
   return String(str).replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// 本地文件预览（仅列出文件名，实际上传在 submit 时由浏览器处理）
+function previewLocalFiles(input) {
+  const files = Array.from(input.files);
+  const preview = document.getElementById('localFilePreview');
+  document.getElementById('noLocalMsg')?.remove();
+  // 清除旧预览
+  preview.querySelectorAll('.local-file-preview-item').forEach(el => el.remove());
+  if (!files.length) {
+    preview.innerHTML = '<p class="hint-text" id="noLocalMsg">未选择文件（保存时一起上传）</p>';
+    return;
+  }
+  files.forEach(f => {
+    const item = document.createElement('div');
+    item.className = 'linked-drive-item local-file-preview-item';
+    item.innerHTML = `<span class="drive-item-icon">📎</span>
+      <span class="drive-item-name">${escHtml(f.name)}</span>
+      <span style="font-size:11px;color:#888">${(f.size/1024).toFixed(1)}KB</span>`;
+    preview.appendChild(item);
+  });
 }
 </script>
 {% endblock %}
