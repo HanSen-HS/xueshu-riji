@@ -787,11 +787,29 @@ def summarize_upload(upload_id):
                     'url': f'data:image/png;base64,{base64.b64encode(pix.tobytes("png")).decode()}'
                 }})
 
-            resp = client.chat.completions.create(
-                model='Qwen/Qwen2-VL-72B-Instruct',
-                messages=[{'role': 'user', 'content': content}],
-                max_tokens=700, temperature=0.3,
-            )
+            # 按优先级尝试可用的视觉模型
+            _vision_models = [
+                'Qwen/Qwen2-VL-7B-Instruct',
+                'Pro/Qwen/Qwen2-VL-7B-Instruct',
+                'OpenGVLab/InternVL2-8B',
+            ]
+            resp = None
+            last_err = None
+            for vmodel in _vision_models:
+                try:
+                    resp = client.chat.completions.create(
+                        model=vmodel,
+                        messages=[{'role': 'user', 'content': content}],
+                        max_tokens=700, temperature=0.3,
+                    )
+                    break
+                except Exception as ve:
+                    last_err = ve
+                    if '403' in str(ve) or 'disabled' in str(ve).lower() or '404' in str(ve):
+                        continue
+                    raise
+            if resp is None:
+                raise last_err
 
         return jsonify({'success': True, 'summary': resp.choices[0].message.content})
     except Exception as e:
