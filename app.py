@@ -47,8 +47,9 @@ def _has_google():
 
 def _make_flow(state=None):
     cfg = _google_client_config()
+    redirect_uri = url_for('oauth2callback', _external=True).replace('http://', 'https://', 1)
     return Flow.from_client_config(cfg, scopes=GOOGLE_SCOPES,
-        redirect_uri=url_for('oauth2callback', _external=True),
+        redirect_uri=redirect_uri,
         state=state)
 
 # Secret key: 优先用环境变量（生产环境 Render 注入），其次用文件持久化（本地）
@@ -393,9 +394,7 @@ def drive_connect():
     v, c = _pkce_pair()
     session['code_verifier'] = v
     session['drive_connect_mode'] = True      # 标记：仅连接 Drive，不切换账号
-    flow = Flow.from_client_config(
-        _google_client_config(), scopes=GOOGLE_SCOPES,
-        redirect_uri=url_for('oauth2callback', _external=True))
+    flow = _make_flow()
     auth_url, state = flow.authorization_url(
         access_type='offline', prompt='consent',
         code_challenge=c, code_challenge_method='S256')
