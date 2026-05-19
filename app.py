@@ -19,6 +19,9 @@ from requests_oauthlib import OAuth2Session
 
 app = Flask(__name__)
 
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 BASE_DIR        = Path(__file__).parent
 DB_PATH         = BASE_DIR / 'journal.db'
 DATABASE_URL    = os.environ.get('DATABASE_URL', '').replace('postgres://', 'postgresql://')
