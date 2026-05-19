@@ -582,8 +582,9 @@ def setup():
         has_ms=MS_CREDS.exists(),
         app_dir=str(BASE_DIR))
 
+init_db()  # gunicorn 和直接运行都会执行
+
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get('PORT', 5001))
     debug = os.environ.get('FLASK_ENV') != 'production'
     if debug:
