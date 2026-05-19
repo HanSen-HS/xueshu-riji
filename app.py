@@ -765,15 +765,23 @@ def summarize_upload(upload_id):
                 max_tokens=700, temperature=0.3,
             )
         else:
-            # 扫描版 PDF → 渲染为图片，用视觉模型总结
+            # 扫描版 PDF → 渲染为图片，用 Groq LLaMA 4 Scout 视觉模型
             if Path(row['filename']).suffix.lower() != '.pdf':
                 return jsonify({'error': '未能提取文字，该文件可能是扫描件且不支持图像识别'}), 400
+
+            groq_key = os.environ.get('GROQ_API_KEY', '').strip()
+            if not groq_key:
+                return jsonify({'error':
+                    '检测到扫描版 PDF（无文字层），需要视觉 AI 处理。'
+                    '请前往 console.groq.com 免费注册并获取 API Key，'
+                    '然后在 Render 环境变量中添加 GROQ_API_KEY。'}), 503
+
             try:
                 import fitz
             except ImportError:
                 return jsonify({'error': '扫描版 PDF 支持正在部署，请稍候几分钟重试'}), 503
 
-            doc = fitz.open(stream=base64.b64decode(row['data']), filetype='pdf')
+            doc = fitz.open(stream=data_bytes, filetype='pdf')
             content = [{'type': 'text', 'text':
                 '以下是一篇学术论文的扫描页面，请用中文做简洁的学术总结，格式：\n'
                 '【核心主题】（1~2句）\n'
@@ -787,29 +795,13 @@ def summarize_upload(upload_id):
                     'url': f'data:image/png;base64,{base64.b64encode(pix.tobytes("png")).decode()}'
                 }})
 
-            # 按优先级尝试可用的视觉模型
-            _vision_models = [
-                'Qwen/Qwen2-VL-7B-Instruct',
-                'Pro/Qwen/Qwen2-VL-7B-Instruct',
-                'OpenGVLab/InternVL2-8B',
-            ]
-            resp = None
-            last_err = None
-            for vmodel in _vision_models:
-                try:
-                    resp = client.chat.completions.create(
-                        model=vmodel,
-                        messages=[{'role': 'user', 'content': content}],
-                        max_tokens=700, temperature=0.3,
-                    )
-                    break
-                except Exception as ve:
-                    last_err = ve
-                    if '403' in str(ve) or 'disabled' in str(ve).lower() or '404' in str(ve):
-                        continue
-                    raise
-            if resp is None:
-                raise last_err
+            from openai import OpenAI as _OAI
+            groq_client = _OAI(api_key=groq_key, base_url='https://api.groq.com/openai/v1')
+            resp = groq_client.chat.completions.create(
+                model='meta-llama/llama-4-scout-17b-16e-instruct',
+                messages=[{'role': 'user', 'content': content}],
+                max_tokens=700, temperature=0.3,
+            )
 
         return jsonify({'success': True, 'summary': resp.choices[0].message.content})
     except Exception as e:
