@@ -319,7 +319,8 @@ def oauth2callback():
         return redirect(url_for('login_page'))
     flow = _make_flow(state=state)
     try:
-        flow.fetch_token(authorization_response=request.url, code_verifier=verifier)
+        callback_url = request.url.replace('http://', 'https://', 1)
+        flow.fetch_token(authorization_response=callback_url, code_verifier=verifier)
     except Exception as e:
         flash(f'Google 登录失败: {e}', 'error')
         return redirect(url_for('login_page'))
