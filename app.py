@@ -5,8 +5,7 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 from functools import wraps
 
-if os.environ.get('FLASK_ENV') != 'production':
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # 反向代理后 HTTPS 由 Render 层保证
 
 from flask import (Flask, render_template, request, redirect,
                    url_for, session, jsonify, flash, g)
