@@ -15,6 +15,7 @@
   </a>
   <div class="nav-actions">
     {% if current_user %}
+      <a href="{{ url_for('leaderboard') }}" class="nav-link">🏆 排行榜</a>
       <div class="user-info">
         {% if current_user.avatar %}
           <img src="{{ current_user.avatar }}" class="avatar" alt="avatar">

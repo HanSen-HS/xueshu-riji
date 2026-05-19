@@ -697,6 +697,41 @@ def delete_upload(upload_id):
     get_db().commit()
     return jsonify({'success': True})
 
+# ── 排行榜 ────────────────────────────────────────────────────
+@app.route('/leaderboard')
+@login_required
+def leaderboard():
+    db = get_db()
+    this_month = date.today().strftime('%Y-%m')
+
+    # 全部时长排名
+    all_time = db.execute("""
+        SELECT u.id, u.name, u.avatar,
+               COALESCE(SUM(e.study_hours), 0) AS total_hours,
+               COUNT(e.id) AS entry_count
+        FROM users u
+        LEFT JOIN entries e ON u.id = e.user_id
+        GROUP BY u.id, u.name, u.avatar
+        ORDER BY total_hours DESC
+    """).fetchall()
+
+    # 本月时长排名
+    monthly = db.execute("""
+        SELECT u.id, u.name, u.avatar,
+               COALESCE(SUM(e.study_hours), 0) AS total_hours,
+               COUNT(e.id) AS entry_count
+        FROM users u
+        LEFT JOIN entries e ON u.id = e.user_id AND e.date LIKE ?
+        GROUP BY u.id, u.name, u.avatar
+        ORDER BY total_hours DESC
+    """, (f'{this_month}%',)).fetchall()
+
+    me = session['user_id']
+    return render_template('leaderboard.html',
+        all_time=[dict(r) for r in all_time],
+        monthly=[dict(r) for r in monthly],
+        this_month=this_month, me=me)
+
 # ── Setup ─────────────────────────────────────────────────────
 @app.route('/setup')
 def setup():

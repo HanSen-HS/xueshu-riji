@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}排行榜 · 学术日志{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">🏆 学习排行榜</h1>
+</div>
+
+<div class="lb-tabs" id="lbTabs">
+  <button class="lb-tab active" onclick="switchTab('monthly')">本月排名</button>
+  <button class="lb-tab" onclick="switchTab('alltime')">累计排名</button>
+</div>
+
+<!-- 本月排名 -->
+<div id="tab-monthly" class="lb-panel">
+  <div class="lb-subtitle">{{ this_month[:4] }} 年 {{ this_month[5:7] }} 月学习时长</div>
+  {% if monthly %}
+    <div class="lb-list">
+      {% for u in monthly %}
+      {% set rank = loop.index %}
+      <div class="lb-row {% if u.id == me %}lb-me{% endif %}">
+        <div class="lb-rank">
+          {% if rank == 1 %}🥇
+          {% elif rank == 2 %}🥈
+          {% elif rank == 3 %}🥉
+          {% else %}<span class="lb-rank-num">{{ rank }}</span>
+          {% endif %}
+        </div>
+        <div class="lb-avatar">
+          {% if u.avatar %}
+            <img src="{{ u.avatar }}" class="avatar" alt="">
+          {% else %}
+            <div class="avatar-placeholder">{{ u.name[0] }}</div>
+          {% endif %}
+        </div>
+        <div class="lb-info">
+          <span class="lb-name">{{ u.name }}{% if u.id == me %} <span class="lb-me-tag">我</span>{% endif %}</span>
+          <span class="lb-entries">{{ u.entry_count }} 篇日志</span>
+        </div>
+        <div class="lb-hours">
+          <span class="lb-hours-val">{{ "%.1f"|format(u.total_hours) }}</span>
+          <span class="lb-hours-unit">小时</span>
+        </div>
+        <div class="lb-bar-wrap">
+          {% set max_h = monthly[0].total_hours if monthly[0].total_hours > 0 else 1 %}
+          <div class="lb-bar" style="width:{{ [((u.total_hours / max_h) * 100)|round|int, 4]|max }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state"><p>本月暂无记录</p></div>
+  {% endif %}
+</div>
+
+<!-- 累计排名 -->
+<div id="tab-alltime" class="lb-panel" style="display:none">
+  <div class="lb-subtitle">所有时间累计学习时长</div>
+  {% if all_time %}
+    <div class="lb-list">
+      {% for u in all_time %}
+      {% set rank = loop.index %}
+      <div class="lb-row {% if u.id == me %}lb-me{% endif %}">
+        <div class="lb-rank">
+          {% if rank == 1 %}🥇
+          {% elif rank == 2 %}🥈
+          {% elif rank == 3 %}🥉
+          {% else %}<span class="lb-rank-num">{{ rank }}</span>
+          {% endif %}
+        </div>
+        <div class="lb-avatar">
+          {% if u.avatar %}
+            <img src="{{ u.avatar }}" class="avatar" alt="">
+          {% else %}
+            <div class="avatar-placeholder">{{ u.name[0] }}</div>
+          {% endif %}
+        </div>
+        <div class="lb-info">
+          <span class="lb-name">{{ u.name }}{% if u.id == me %} <span class="lb-me-tag">我</span>{% endif %}</span>
+          <span class="lb-entries">{{ u.entry_count }} 篇日志</span>
+        </div>
+        <div class="lb-hours">
+          <span class="lb-hours-val">{{ "%.1f"|format(u.total_hours) }}</span>
+          <span class="lb-hours-unit">小时</span>
+        </div>
+        <div class="lb-bar-wrap">
+          {% set max_h = all_time[0].total_hours if all_time[0].total_hours > 0 else 1 %}
+          <div class="lb-bar" style="width:{{ [((u.total_hours / max_h) * 100)|round|int, 4]|max }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state"><p>暂无数据</p></div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.lb-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).style.display = 'block';
+  event.target.classList.add('active');
+}
+</script>
+{% endblock %}
