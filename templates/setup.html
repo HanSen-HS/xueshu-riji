@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}初始配置 · 学术日志{% endblock %}
+{% block content %}
+<div class="setup-page">
+  <div class="setup-card">
+    <div class="setup-icon">⚙️</div>
+    <h1>配置 Google Drive 授权</h1>
+    <p class="setup-desc">需要创建 Google Cloud 凭据才能使用 Drive 集成功能。按以下步骤操作：</p>
+
+    <div class="setup-steps">
+      <div class="setup-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>访问 Google Cloud Console</strong>
+          <p>打开 <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a>，新建或选择一个项目</p>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>启用 API</strong>
+          <p>在「API 和服务」→「库」中搜索并启用：<br>
+          <code>Google Drive API</code> 和 <code>Google People API</code></p>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>创建 OAuth 凭据</strong>
+          <p>「API 和服务」→「凭据」→「创建凭据」→「OAuth 客户端 ID」<br>
+          应用类型选 <strong>Web 应用</strong><br>
+          授权重定向 URI 填写：<code>http://localhost:5001/oauth2callback</code></p>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <strong>下载并放置凭据文件</strong>
+          <p>下载 JSON 文件，重命名为 <code>client_secrets.json</code><br>
+          放到应用目录：<code>{{ app_dir }}</code></p>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <strong>重启应用</strong>
+          <p>重新运行 <code>python3 app.py</code>，配置即生效</p>
+        </div>
+      </div>
+    </div>
+
+    {% if has_creds %}
+    <div class="setup-success">
+      ✅ client_secrets.json 已检测到！
+      <a href="{{ url_for('login') }}" class="btn btn-primary">立即登录 Google</a>
+    </div>
+    {% endif %}
+
+    <div class="setup-footer">
+      <a href="{{ url_for('index') }}" class="btn btn-outline">跳过，先不连接 Drive</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

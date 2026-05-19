@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: xueshu-riji
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: RENDER_DISK_PATH
+        value: /data
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

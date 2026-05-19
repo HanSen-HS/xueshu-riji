@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}主页 · 学术日志{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">学习总览</h1>
+    <p class="page-sub">{{ today }}</p>
+  </div>
+  <a href="{{ url_for('new_entry') }}" class="btn btn-primary">＋ 记录今日学习</a>
+</div>
+
+<!-- 统计卡片 -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon">📝</div>
+    <div class="stat-value">{{ total }}</div>
+    <div class="stat-label">累计日志</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">⏱️</div>
+    <div class="stat-value">{{ total_hours }}</div>
+    <div class="stat-label">累计学习时长（小时）</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">📅</div>
+    <div class="stat-value">{{ month_hours }}</div>
+    <div class="stat-label">本月学习时长（小时）</div>
+  </div>
+  <div class="stat-card accent">
+    <div class="stat-icon">🔥</div>
+    <div class="stat-value">{{ streak }}</div>
+    <div class="stat-label">连续学习天数</div>
+  </div>
+</div>
+
+<div class="content-grid">
+  <!-- 最近日志 -->
+  <div class="section-card main-section">
+    <div class="section-header">
+      <h2>最近日志</h2>
+    </div>
+
+    {% if entries %}
+      <div class="entry-list">
+        {% for e in entries %}
+        <a href="{{ url_for('view_entry', entry_id=e.id) }}" class="entry-item">
+          <div class="entry-date-badge">
+            <span class="entry-month">{{ e.date[5:7] }}月</span>
+            <span class="entry-day">{{ e.date[8:10] }}</span>
+          </div>
+          <div class="entry-info">
+            <div class="entry-title-row">
+              <span class="entry-title">{{ e.title }}</span>
+              <span class="entry-mood">{{ moods[e.mood - 1] if e.mood else '😐' }}</span>
+            </div>
+            <div class="entry-meta">
+              <span>⏱ {{ e.study_hours }}h</span>
+              {% if e.activities %}
+                <span>· {{ e.activities|length }} 项活动</span>
+              {% endif %}
+              {% if e.tags %}
+                {% for tag in e.tags[:3] %}
+                  <span class="tag-mini">{{ tag }}</span>
+                {% endfor %}
+              {% endif %}
+            </div>
+          </div>
+          <div class="entry-arrow">›</div>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-icon">📖</div>
+        <p>还没有日志记录</p>
+        <a href="{{ url_for('new_entry') }}" class="btn btn-primary">记录第一篇日志</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- 本月日历 -->
+  <div class="section-card side-section">
+    <div class="section-header">
+      <h2>本月打卡</h2>
+    </div>
+    <div class="mini-calendar" id="miniCalendar"
+         data-year="{{ today[:4] }}" data-month="{{ today[5:7] }}"
+         data-has-entries="{{ cal_dates | join(',') }}">
+    </div>
+
+    {% if not has_drive %}
+    <div class="login-prompt">
+      <p>连接 Google Drive 可关联文档</p>
+      <a href="{{ url_for('drive_connect') }}" class="btn btn-google-sm">连接 Drive（可选）</a>
+    </div>
+    {% else %}
+    <div class="login-prompt">
+      <p style="color:#2e7d32">✅ Google Drive 已连接</p>
+      <a href="{{ url_for('drive_disconnect') }}" class="btn-logout" style="font-size:12px">断开连接</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

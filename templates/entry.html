@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}{{ entry.title }} · 学术日志{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="breadcrumb"><a href="{{ url_for('index') }}">主页</a> › 日志详情</div>
+    <h1 class="page-title entry-page-title">{{ entry.title }}</h1>
+    <div class="entry-meta-bar">
+      <span class="entry-date-label">📅 {{ entry.date }}</span>
+      <span class="entry-mood-label">{{ moods[entry.mood - 1] if entry.mood else '😐' }}</span>
+      <span class="entry-hours-label">⏱ {{ entry.study_hours }} 小时</span>
+      {% if entry.tags %}
+        {% for tag in entry.tags %}
+          <span class="tag">{{ tag }}</span>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+  {% if session.get('user') %}
+  <div class="entry-actions">
+    <a href="{{ url_for('edit_entry', entry_id=entry.id) }}" class="btn btn-outline">✏️ 编辑</a>
+    <form method="POST" action="{{ url_for('delete_entry', entry_id=entry.id) }}"
+          onsubmit="return confirm('确定删除这篇日志？')">
+      <button type="submit" class="btn btn-danger">🗑️ 删除</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+<div class="detail-grid">
+  <!-- 主内容 -->
+  <div class="detail-main">
+
+    <!-- 学习活动 -->
+    {% if entry.activities %}
+    <div class="detail-card">
+      <h2 class="detail-section-title">📖 学习活动</h2>
+      <div class="activity-list">
+        {% for act in entry.activities %}
+        <div class="activity-detail-item">
+          <div class="activity-cat-badge">
+            {{ categories.get(act.category, act.category) }}
+          </div>
+          <div class="activity-detail-desc">{{ act.desc }}</div>
+          {% if act.hours %}
+          <div class="activity-detail-hours">{{ act.hours }}h</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 学习感想 -->
+    {% if entry.reflections %}
+    <div class="detail-card">
+      <h2 class="detail-section-title">💭 学习感想</h2>
+      <div class="reflections-text">{{ entry.reflections }}</div>
+    </div>
+    {% endif %}
+
+    <!-- 关键洞见 -->
+    {% if entry.insights %}
+    <div class="detail-card">
+      <h2 class="detail-section-title">💡 关键洞见</h2>
+      <ul class="insights-list">
+        {% for insight in entry.insights %}
+        <li class="insight-item">{{ insight }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- 侧栏：Drive 文档 -->
+  <div class="detail-side">
+    <div class="detail-card">
+      <div class="drive-side-header">
+        <h2 class="detail-section-title">
+          <svg width="16" height="16" viewBox="0 0 87.3 78"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5l5.4 9.35z" fill="#0066DA"/><path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 49.5c-.8 1.4-1.2 2.95-1.2 4.5h27.5L43.65 25z" fill="#00AC47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.65 7.9 12.15z" fill="#EA4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2L43.65 25z" fill="#00832D"/><path d="M59.8 54H27.5L13.75 77.8c1.35.8 2.9 1.2h50.8c1.6 0 3.15-.45 4.5-1.2L59.8 54z" fill="#2684FC"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 54h27.45c0-1.55-.4-3.1-1.2-4.5L73.4 26.5z" fill="#FFBA00"/></svg>
+          关联文档
+        </h2>
+        {% if session.get('user') %}
+        <button type="button" class="btn btn-outline-sm" onclick="toggleDrivePicker()">＋ 添加</button>
+        {% endif %}
+      </div>
+
+      <!-- 已关联文档列表 -->
+      <div id="linkedDriveList">
+        {% if drives %}
+          {% for doc in drives %}
+          <div class="linked-drive-item" id="link-{{ doc.id }}">
+            <span class="drive-item-icon">{{ mime_icon(doc.mime_type) }}</span>
+            <a href="{{ doc.file_url }}" target="_blank" class="drive-item-name">{{ doc.file_name }}</a>
+            {% if session.get('user') %}
+            <button type="button" class="btn-remove-link"
+                    onclick="unlinkDrive('{{ entry.id }}','{{ doc.id }}')">✕</button>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="hint-text" id="noLinksMsg">暂无关联文档</p>
+        {% endif %}
+      </div>
+
+      <!-- Drive 选择器 -->
+      {% if session.get('user') %}
+      <div id="drivePicker" style="display:none; margin-top:12px;">
+        <div class="drive-search-box">
+          <input type="text" id="driveSearchPicker" class="form-input" placeholder="搜索文件…">
+          <button type="button" class="btn btn-outline-sm" onclick="searchDrivePicker()">搜索</button>
+        </div>
+        <div id="drivePickerList" class="drive-file-list">
+          <div class="drive-loading">
+            <button type="button" class="link-btn" onclick="loadRecentPicker()">加载最近文件</button>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if session.get('user') %}
+<script>
+const ENTRY_ID = "{{ entry.id }}";
+
+function toggleDrivePicker() {
+  const picker = document.getElementById('drivePicker');
+  picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+}
+
+function loadRecentPicker() {
+  document.getElementById('drivePickerList').innerHTML = '<div class="drive-loading">加载中…</div>';
+  fetch('/api/drive/files').then(r=>r.json())
+    .then(d => renderPickerFiles(d.files||[]))
+    .catch(() => { document.getElementById('drivePickerList').innerHTML = '<p class="error-text">加载失败</p>'; });
+}
+
+function searchDrivePicker() {
+  const q = document.getElementById('driveSearchPicker').value.trim();
+  if (!q) { loadRecentPicker(); return; }
+  document.getElementById('drivePickerList').innerHTML = '<div class="drive-loading">搜索中…</div>';
+  fetch(`/api/drive/search?q=${encodeURIComponent(q)}`).then(r=>r.json())
+    .then(d => renderPickerFiles(d.files||[]))
+    .catch(() => { document.getElementById('drivePickerList').innerHTML = '<p class="error-text">搜索失败</p>'; });
+}
+
+document.getElementById('driveSearchPicker')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); searchDrivePicker(); }
+});
+
+function renderPickerFiles(files) {
+  const list = document.getElementById('drivePickerList');
+  if (!files.length) { list.innerHTML = '<p class="hint-text">未找到文件</p>'; return; }
+  list.innerHTML = files.map(f => `
+    <div class="drive-file-item" onclick="linkFile('${f.id}','${escHtml(f.name)}','${f.webViewLink||''}','${f.mimeType||''}','${f.icon||'📄'}')">
+      <span class="drive-file-icon">${f.icon||'📄'}</span>
+      <div class="drive-file-info">
+        <span class="drive-file-name">${escHtml(f.name)}</span>
+        <span class="drive-file-date">${(f.modifiedTime||'').substring(0,10)}</span>
+      </div>
+      <span class="drive-file-add">＋</span>
+    </div>`).join('');
+}
+
+function linkFile(fileId, fileName, fileUrl, mimeType, icon) {
+  fetch(`/api/entry/${ENTRY_ID}/drive`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({file_id:fileId, file_name:fileName, file_url:fileUrl, mime_type:mimeType})
+  }).then(r=>r.json()).then(data => {
+    if (data.success) {
+      document.getElementById('noLinksMsg')?.remove();
+      const item = document.createElement('div');
+      item.className = 'linked-drive-item';
+      item.id = `link-${data.id}`;
+      item.innerHTML = `
+        <span class="drive-item-icon">${icon}</span>
+        <a href="${fileUrl}" target="_blank" class="drive-item-name">${escHtml(fileName)}</a>
+        <button type="button" class="btn-remove-link" onclick="unlinkDrive('${ENTRY_ID}','${data.id}')">✕</button>`;
+      document.getElementById('linkedDriveList').appendChild(item);
+    }
+  });
+}
+
+function unlinkDrive(entryId, linkId) {
+  fetch(`/api/entry/${entryId}/drive/${linkId}`, {method:'DELETE'})
+    .then(r=>r.json()).then(d => {
+      if (d.success) {
+        document.getElementById(`link-${linkId}`)?.remove();
+        if (!document.querySelector('.linked-drive-item')) {
+          document.getElementById('linkedDriveList').innerHTML = '<p class="hint-text" id="noLinksMsg">暂无关联文档</p>';
+        }
+      }
+    });
+}
+
+function escHtml(str) {
+  return String(str).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+{% endif %}
+{% endblock %}

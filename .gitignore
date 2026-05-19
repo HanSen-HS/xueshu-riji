@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.secret_key
+journal.db
+client_secrets.json
+client_secrets.json.json
+microsoft_secrets.json
+*.log
+.DS_Store

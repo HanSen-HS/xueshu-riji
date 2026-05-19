@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑' if entry else '新建' }}日志 · 学术日志{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">{{ '编辑日志' if entry else '记录今日学习' }}</h1>
+</div>
+
+<form method="POST"
+      action="{{ url_for('update_entry', entry_id=entry.id) if entry else url_for('create_entry') }}"
+      id="entryForm">
+
+  <div class="form-grid">
+    <!-- 左栏 -->
+    <div class="form-main">
+
+      <!-- 基本信息 -->
+      <div class="form-card">
+        <h3 class="form-section-title">📋 基本信息</h3>
+        <div class="form-row">
+          <div class="form-group half">
+            <label class="form-label">日期</label>
+            <input type="date" name="date" class="form-input"
+                   value="{{ entry.date if entry else today }}" required>
+          </div>
+          <div class="form-group half">
+            <label class="form-label">今日心情</label>
+            <div class="mood-picker" id="moodPicker">
+              {% for emoji in moods %}
+              <input type="radio" name="mood" id="mood{{ loop.index }}" value="{{ loop.index }}"
+                     {{ 'checked' if entry and entry.mood == loop.index else ('checked' if not entry and loop.index == 3 else '') }}>
+              <label for="mood{{ loop.index }}" class="mood-btn" title="{{ ['很差','较差','一般','良好','很好'][loop.index0] }}">{{ emoji }}</label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">今日主题 <span class="required">*</span></label>
+          <input type="text" name="title" class="form-input"
+                 placeholder="例：阅读内蒙古统计年鉴，整理数据"
+                 value="{{ entry.title if entry else '' }}" required>
+        </div>
+      </div>
+
+      <!-- 学习活动 -->
+      <div class="form-card">
+        <div class="form-section-header">
+          <h3 class="form-section-title">📖 学习活动</h3>
+          <button type="button" class="btn btn-outline-sm" onclick="addActivity()">＋ 添加活动</button>
+        </div>
+        <div id="activitiesContainer">
+          {% if entry and entry.activities %}
+            {% for act in entry.activities %}
+            <div class="activity-row" data-idx="{{ loop.index0 }}">
+              <select name="act_cat_{{ loop.index0 }}" class="form-select act-cat">
+                {% for val, label in categories %}
+                  <option value="{{ val }}" {{ 'selected' if act.category == val else '' }}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <input type="text" name="act_desc_{{ loop.index0 }}" class="form-input act-desc"
+                     placeholder="描述学习内容" value="{{ act.desc }}" required>
+              <input type="number" name="act_hours_{{ loop.index0 }}" class="form-input act-hours"
+                     placeholder="时长(h)" min="0" max="24" step="0.5" value="{{ act.hours }}">
+              <button type="button" class="btn-remove-act" onclick="removeActivity(this)">✕</button>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="activity-row" data-idx="0">
+              <select name="act_cat_0" class="form-select act-cat">
+                {% for val, label in categories %}
+                  <option value="{{ val }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+              <input type="text" name="act_desc_0" class="form-input act-desc"
+                     placeholder="描述学习内容" required>
+              <input type="number" name="act_hours_0" class="form-input act-hours"
+                     placeholder="时长(h)" min="0" max="24" step="0.5">
+              <button type="button" class="btn-remove-act" onclick="removeActivity(this)">✕</button>
+            </div>
+          {% endif %}
+        </div>
+        <div class="total-hours-display">
+          合计学习时长：<strong id="totalHours">0</strong> 小时
+        </div>
+      </div>
+
+      <!-- 学习感想 -->
+      <div class="form-card">
+        <h3 class="form-section-title">💭 学习感想</h3>
+        <div class="form-group">
+          <label class="form-label">今日思考与感悟</label>
+          <textarea name="reflections" class="form-textarea" rows="6"
+                    placeholder="记录今天的学习体验、困惑、收获……">{{ entry.reflections if entry else '' }}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">关键洞见（每行一条）</label>
+          <textarea name="insights" class="form-textarea" rows="4"
+                    placeholder="• 发现了什么新规律？&#10;• 有什么重要结论？">{{ '\n'.join(entry.insights) if entry else '' }}</textarea>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 右栏 -->
+    <div class="form-side">
+
+      <!-- Google Drive 文档 -->
+      <div class="form-card" id="driveCard">
+        <h3 class="form-section-title">
+          <svg width="16" height="16" viewBox="0 0 87.3 78"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5l5.4 9.35z" fill="#0066DA"/><path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 49.5c-.8 1.4-1.2 2.95-1.2 4.5h27.5L43.65 25z" fill="#00AC47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.65 7.9 12.15z" fill="#EA4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2L43.65 25z" fill="#00832D"/><path d="M59.8 54H27.5L13.75 77.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2L59.8 54z" fill="#2684FC"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 54h27.45c0-1.55-.4-3.1-1.2-4.5L73.4 26.5z" fill="#FFBA00"/></svg>
+          Google Drive 文档
+        </h3>
+        {% if session.get('user') %}
+          <div class="drive-search-box">
+            <input type="text" id="driveSearch" class="form-input"
+                   placeholder="搜索 Drive 文件…">
+            <button type="button" class="btn btn-outline-sm" onclick="searchDrive()">搜索</button>
+          </div>
+          <div id="driveFileList" class="drive-file-list">
+            <div class="drive-loading">点击搜索或
+              <button type="button" class="link-btn" onclick="loadRecentDrive()">加载最近文件</button>
+            </div>
+          </div>
+          <div id="linkedDocs" class="linked-docs">
+            <p class="linked-docs-title">已关联文档</p>
+            <div id="linkedDocsList">
+              {% if entry %}
+                <!-- drive links managed via API after save -->
+                <p class="hint-text">保存后可在详情页管理关联文档</p>
+              {% else %}
+                <p class="hint-text no-links">暂无关联文档</p>
+              {% endif %}
+            </div>
+          </div>
+        {% else %}
+          <div class="drive-login-prompt">
+            <p>登录 Google 账户后可关联 Drive 文档</p>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- 标签 -->
+      <div class="form-card">
+        <h3 class="form-section-title">🏷️ 标签</h3>
+        <input type="text" name="tags" class="form-input"
+               placeholder="多个标签用逗号分隔，例：内蒙古,统计,论文"
+               value="{{ entry.tags | join(',') if entry else '' }}">
+        <p class="hint-text">例：内蒙古, 统计年鉴, 泰尔指数</p>
+      </div>
+
+      <!-- 提交 -->
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-block">
+          {{ '💾 保存更新' if entry else '💾 保存日志' }}
+        </button>
+        <a href="{{ url_for('view_entry', entry_id=entry.id) if entry else url_for('index') }}"
+           class="btn btn-outline btn-block">取消</a>
+      </div>
+
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CATEGORIES = {{ dict(categories) | tojson }};
+let actIdx = {{ (entry.activities | length) if entry and entry.activities else 1 }};
+
+function addActivity() {
+  const container = document.getElementById('activitiesContainer');
+  const div = document.createElement('div');
+  div.className = 'activity-row';
+  div.dataset.idx = actIdx;
+  div.innerHTML = `
+    <select name="act_cat_${actIdx}" class="form-select act-cat">
+      ${Object.entries(CATEGORIES).map(([v,l]) => `<option value="${v}">${l}</option>`).join('')}
+    </select>
+    <input type="text" name="act_desc_${actIdx}" class="form-input act-desc" placeholder="描述学习内容" required>
+    <input type="number" name="act_hours_${actIdx}" class="form-input act-hours" placeholder="时长(h)" min="0" max="24" step="0.5">
+    <button type="button" class="btn-remove-act" onclick="removeActivity(this)">✕</button>`;
+  container.appendChild(div);
+  actIdx++;
+  updateTotalHours();
+}
+
+function removeActivity(btn) {
+  const row = btn.closest('.activity-row');
+  if (document.querySelectorAll('.activity-row').length > 1) {
+    row.remove();
+    updateTotalHours();
+  }
+}
+
+function updateTotalHours() {
+  const inputs = document.querySelectorAll('.act-hours');
+  let total = 0;
+  inputs.forEach(inp => { total += parseFloat(inp.value || 0); });
+  document.getElementById('totalHours').textContent = total.toFixed(1);
+}
+
+document.addEventListener('input', e => {
+  if (e.target.classList.contains('act-hours')) updateTotalHours();
+});
+
+updateTotalHours();
+
+// Drive search
+function loadRecentDrive() {
+  document.getElementById('driveFileList').innerHTML = '<div class="drive-loading">加载中…</div>';
+  fetch('/api/drive/files')
+    .then(r => r.json())
+    .then(data => renderDriveFiles(data.files || []))
+    .catch(() => { document.getElementById('driveFileList').innerHTML = '<p class="error-text">加载失败</p>'; });
+}
+
+function searchDrive() {
+  const q = document.getElementById('driveSearch').value.trim();
+  if (!q) { loadRecentDrive(); return; }
+  document.getElementById('driveFileList').innerHTML = '<div class="drive-loading">搜索中…</div>';
+  fetch(`/api/drive/search?q=${encodeURIComponent(q)}`)
+    .then(r => r.json())
+    .then(data => renderDriveFiles(data.files || []))
+    .catch(() => { document.getElementById('driveFileList').innerHTML = '<p class="error-text">搜索失败</p>'; });
+}
+
+document.getElementById('driveSearch')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); searchDrive(); }
+});
+
+function renderDriveFiles(files) {
+  const list = document.getElementById('driveFileList');
+  if (!files.length) { list.innerHTML = '<p class="hint-text">未找到文件</p>'; return; }
+  list.innerHTML = files.map(f => `
+    <div class="drive-file-item" onclick="addDriveLink('${f.id}','${escHtml(f.name)}','${f.webViewLink}','${f.mimeType||''}','${f.icon||'📄'}')">
+      <span class="drive-file-icon">${f.icon||'📄'}</span>
+      <div class="drive-file-info">
+        <span class="drive-file-name">${escHtml(f.name)}</span>
+        <span class="drive-file-date">${(f.modifiedTime||'').substring(0,10)}</span>
+      </div>
+      <span class="drive-file-add">＋</span>
+    </div>`).join('');
+}
+
+const linkedFiles = new Map();
+
+function addDriveLink(id, name, url, mime, icon) {
+  if (linkedFiles.has(id)) return;
+  linkedFiles.set(id, {id, name, url, mime, icon});
+  renderLinkedDocs();
+}
+
+function removeDriveLink(id) {
+  linkedFiles.delete(id);
+  renderLinkedDocs();
+}
+
+function renderLinkedDocs() {
+  const container = document.getElementById('linkedDocsList');
+  if (!linkedFiles.size) {
+    container.innerHTML = '<p class="hint-text no-links">暂无关联文档</p>';
+    return;
+  }
+  container.innerHTML = [...linkedFiles.values()].map(f => `
+    <div class="linked-doc-item">
+      <span>${f.icon}</span>
+      <a href="${f.url}" target="_blank" class="linked-doc-name">${escHtml(f.name)}</a>
+      <button type="button" class="btn-remove-link" onclick="removeDriveLink('${f.id}')">✕</button>
+    </div>`).join('');
+  // Store as hidden fields
+  document.querySelectorAll('.drive-hidden').forEach(el => el.remove());
+  linkedFiles.forEach(f => {
+    ['file_id','file_name','file_url','mime_type'].forEach(key => {
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.className = 'drive-hidden';
+      inp.name = `drive_${key}[]`;
+      inp.value = f[key.replace('file_','').replace('mime_type','mime')];
+      document.getElementById('entryForm').appendChild(inp);
+    });
+  });
+}
+
+function escHtml(str) {
+  return String(str).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+{% endblock %}

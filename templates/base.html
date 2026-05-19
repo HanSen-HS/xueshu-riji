@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}学术日志{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="{{ url_for('index') if session.get('user_id') else url_for('login_page') }}" class="nav-brand">
+    <span class="nav-icon">📚</span>
+    <span class="nav-title">学术日志</span>
+  </a>
+  <div class="nav-actions">
+    {% if current_user %}
+      <a href="{{ url_for('new_entry') }}" class="btn btn-primary btn-sm">＋ 新建日志</a>
+      <div class="user-info">
+        {% if current_user.avatar %}
+          <img src="{{ current_user.avatar }}" class="avatar" alt="avatar">
+        {% else %}
+          <div class="avatar-placeholder">{{ current_user.name[0] }}</div>
+        {% endif %}
+        <span class="user-name">{{ current_user.name }}</span>
+        {% if session.get('google_credentials') %}
+          <span class="drive-badge">Drive ✓</span>
+        {% endif %}
+        <a href="{{ url_for('logout') }}" class="btn-logout">退出</a>
+      </div>
+    {% endif %}
+  </div>
+</nav>
+
+<div class="flash-container">
+  {% for cat, msg in get_flashed_messages(with_categories=true) %}
+    <div class="flash flash-{{ cat }}">{{ msg }}</div>
+  {% endfor %}
+</div>
+
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}注册 · 学术日志{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">📚</div>
+    <h1 class="auth-title">创建账号</h1>
+    <p class="auth-sub">支持所有邮箱：163、QQ、Gmail、Outlook 等</p>
+
+    <form method="POST" action="{{ url_for('register') }}" class="auth-form">
+      <div class="form-group">
+        <label class="form-label">姓名 <span class="required">*</span></label>
+        <input type="text" name="name" class="form-input"
+               placeholder="你的姓名或昵称" required autofocus>
+      </div>
+      <div class="form-group">
+        <label class="form-label">邮箱地址 <span class="required">*</span></label>
+        <input type="email" name="email" class="form-input"
+               placeholder="example@163.com / qq.com / gmail.com …" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">密码 <span class="required">*</span>
+          <span class="hint-inline">（至少6位）</span>
+        </label>
+        <input type="password" name="password" class="form-input"
+               placeholder="设置登录密码" required minlength="6">
+      </div>
+      <div class="form-group">
+        <label class="form-label">确认密码 <span class="required">*</span></label>
+        <input type="password" name="password2" class="form-input"
+               placeholder="再次输入密码" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">注 册</button>
+    </form>
+
+    <div class="auth-divider"><span>已有账号？</span></div>
+    <a href="{{ url_for('login_page') }}" class="btn btn-outline btn-block">返回登录</a>
+  </div>
+</div>
+{% endblock %}
