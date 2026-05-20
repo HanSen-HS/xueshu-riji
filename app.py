@@ -734,28 +734,30 @@ def _extract_text(data_bytes, filename):
 @app.route('/api/summarize/<upload_id>', methods=['POST'])
 @login_required
 def summarize_upload(upload_id):
-    uid = session['user_id']
-    row = get_db().execute("SELECT * FROM uploads WHERE id=? AND user_id=?",
-                           (upload_id, uid)).fetchone()
-    if not row:
-        return jsonify({'error': '文件不存在'}), 404
-
-    api_key = os.environ.get('SILICONFLOW_API_KEY', '').strip()
-    if not api_key:
-        return jsonify({'error': 'AI 功能未配置，请在 Render 环境变量中添加 SILICONFLOW_API_KEY'}), 503
-
-    data_bytes = base64.b64decode(row['data'])
+    import traceback as _tb
     try:
-        text = _extract_text(data_bytes, row['filename'])
-    except ImportError as e:
-        return jsonify({'error': f'服务器依赖库缺失，请稍候重试（{e}）'}), 503
-    except Exception as e:
-        return jsonify({'error': f'文件解析出错：{e}'}), 400
+        uid = session['user_id']
+        row = get_db().execute("SELECT * FROM uploads WHERE id=? AND user_id=?",
+                               (upload_id, uid)).fetchone()
+        if not row:
+            return jsonify({'error': '文件不存在'}), 404
 
-    if text is None:
-        return jsonify({'error': '该文件格式不支持 AI 总结，仅支持 PDF、Word(.docx)、PPT(.pptx)、TXT、MD'}), 400
+        api_key = os.environ.get('SILICONFLOW_API_KEY', '').strip()
+        if not api_key:
+            return jsonify({'error': 'AI 功能未配置，请在 Render 环境变量中添加 SILICONFLOW_API_KEY'}), 503
 
-    try:
+        data_bytes = base64.b64decode(row['data'])
+
+        try:
+            text = _extract_text(data_bytes, row['filename'])
+        except ImportError as e:
+            return jsonify({'error': f'服务器依赖库缺失，请稍候重试（{e}）'}), 503
+        except Exception as e:
+            return jsonify({'error': f'文件解析出错：{e}'}), 400
+
+        if text is None:
+            return jsonify({'error': '该文件格式不支持 AI 总结，仅支持 PDF、Word(.docx)、PPT(.pptx)、TXT、MD'}), 400
+
         from openai import OpenAI
         client = OpenAI(api_key=api_key, base_url='https://api.siliconflow.cn/v1')
 
@@ -771,7 +773,7 @@ def summarize_upload(upload_id):
                 max_tokens=700, temperature=0.3,
             )
         else:
-            # 扫描版 PDF → 渲染为图片，用 Groq LLaMA 4 Scout 视觉模型
+            # 扫描版 PDF → 渲染为图片，用 Groq 视觉模型
             if Path(row['filename']).suffix.lower() != '.pdf':
                 return jsonify({'error': '未能提取文字，该文件可能是扫描件且不支持图像识别'}), 400
 
@@ -788,7 +790,6 @@ def summarize_upload(upload_id):
                 return jsonify({'error': '扫描版 PDF 支持正在部署，请稍候几分钟重试'}), 503
 
             doc = fitz.open(stream=data_bytes, filetype='pdf')
-            # 只取前3页，0.65x 缩放，降低图像体积防止超时
             content = [{'type': 'text', 'text':
                 'These are scanned pages of an academic paper. '
                 'Please summarize in Chinese with this format:\n'
@@ -802,14 +803,14 @@ def summarize_upload(upload_id):
                 content.append({'type': 'image_url', 'image_url': {
                     'url': f'data:image/png;base64,{base64.b64encode(pix.tobytes("png")).decode()}'
                 }})
+            doc.close()
 
             from openai import OpenAI as _OAI
             groq_client = _OAI(api_key=groq_key, base_url='https://api.groq.com/openai/v1')
-            # llama-3.2-11b-vision-preview 是 Groq 免费视觉模型
             _groq_vision_models = [
+                'meta-llama/llama-4-scout-17b-16e-instruct',
                 'llama-3.2-11b-vision-preview',
                 'llama-3.2-90b-vision-preview',
-                'meta-llama/llama-4-scout-17b-16e-instruct',
             ]
             resp = None
             last_err = None
@@ -824,15 +825,18 @@ def summarize_upload(upload_id):
                 except Exception as ve:
                     last_err = ve
                     err_str = str(ve)
-                    if any(x in err_str for x in ('404', '400', 'not found', 'does not exist', 'disabled')):
+                    if any(x in err_str for x in ('404', '400', 'not found', 'does not exist', 'disabled', 'decommissioned')):
                         continue
                     raise
             if resp is None:
                 raise last_err
 
         return jsonify({'success': True, 'summary': resp.choices[0].message.content})
+
     except Exception as e:
-        return jsonify({'error': f'AI 请求失败：{e}'}), 500
+        tb = _tb.format_exc()
+        app.logger.error('summarize_upload error:\n%s', tb)
+        return jsonify({'error': f'AI 请求失败：{e}\n\n{tb[-600:]}'}), 500
 
 # ── 排行榜 ────────────────────────────────────────────────────
 @app.route('/leaderboard')
