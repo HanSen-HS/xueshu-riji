@@ -227,6 +227,19 @@ a:hover { text-decoration: underline; }
 .total-hours-display { font-size: 13px; color: var(--text-2); margin-top: 8px;
                        padding: 8px 12px; background: var(--primary-light); border-radius: 6px; }
 
+.pomo-hours-hint { display: flex; align-items: center; gap: 10px; margin-top: 8px;
+                   padding: 8px 12px; background: #fff3e0; border-radius: 6px;
+                   border: 1px solid #ffe0b2; font-size: 13px; color: #e65100; }
+.pomo-hours-hint strong { color: #bf360c; }
+.btn-pomo-apply { padding: 3px 10px; font-size: 12px; border-radius: 5px; cursor: pointer;
+                  border: 1px solid #e65100; background: #e65100; color: #fff;
+                  transition: background .15s; }
+.btn-pomo-apply:hover { background: #bf360c; }
+.btn-pomo-reset { padding: 3px 8px; font-size: 12px; border-radius: 5px; cursor: pointer;
+                  border: 1px solid #e0e0e0; background: transparent; color: var(--text-3);
+                  transition: color .15s; }
+.btn-pomo-reset:hover { color: var(--text-2); }
+
 /* ── Drive section ──────────────────────────────────────────── */
 .drive-search-box { display: flex; gap: 8px; margin-bottom: 10px; }
 .drive-search-box .form-input { flex: 1; }

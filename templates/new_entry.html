@@ -89,6 +89,11 @@
         <div class="total-hours-display">
           合计学习时长：<strong id="totalHours">0</strong> 小时
         </div>
+        <div class="pomo-hours-hint" id="pomoHint" style="display:none">
+          <span>🍅 番茄钟已计时：<strong id="pomoHoursText"></strong></span>
+          <button type="button" class="btn-pomo-apply" onclick="applyPomoHours()">填入时长</button>
+          <button type="button" class="btn-pomo-reset" onclick="resetPomoHours()" title="清零计时">↺ 清零</button>
+        </div>
       </div>
 
       <!-- 学习感想 -->
@@ -328,8 +333,45 @@ function previewLocalFiles(input) {
   });
 }
 
+// 番茄钟计时显示
+function fmtPomoSec(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h} 小时 ${m} 分钟`;
+  return `${m} 分钟`;
+}
+
+function updatePomoHint() {
+  if (!window.__pomodoroGetWorkSec) return;
+  const sec = window.__pomodoroGetWorkSec();
+  const hint = document.getElementById('pomoHint');
+  if (!hint) return;
+  hint.style.display = sec >= 60 ? 'flex' : 'none';
+  document.getElementById('pomoHoursText').textContent = fmtPomoSec(sec);
+}
+
+function applyPomoHours() {
+  if (!window.__pomodoroGetWorkSec) return;
+  const sec = window.__pomodoroGetWorkSec();
+  const hours = Math.round(sec / 360) / 10;
+  const firstHours = document.querySelector('.act-hours');
+  if (firstHours) {
+    firstHours.value = hours;
+    updateTotalHours();
+  }
+}
+
+function resetPomoHours() {
+  if (window.__pomodoroResetHours) window.__pomodoroResetHours();
+  updatePomoHint();
+}
+
+// 每 10 秒刷新一次计时显示
+setInterval(updatePomoHint, 10000);
+
 // 进入新建日志页自动启动番茄钟
 document.addEventListener('DOMContentLoaded', () => {
+  updatePomoHint();
   {% if not entry %}
   if (window.__pomodoroAutoStart) window.__pomodoroAutoStart();
   {% endif %}

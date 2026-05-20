@@ -8,7 +8,7 @@
   }
   function save(s) { localStorage.setItem(KEY, JSON.stringify(s)); }
   function fresh() {
-    return { running: false, phase: 'work', count: 0, remaining: PHASES.work, startedAt: null };
+    return { running: false, phase: 'work', count: 0, remaining: PHASES.work, startedAt: null, totalWorkSec: 0 };
   }
 
   function getRem(s) {
@@ -45,6 +45,7 @@
   function advance(s) {
     bell();
     if (s.phase === 'work') {
+      s.totalWorkSec = (s.totalWorkSec || 0) + PHASES.work;
       s.count += 1;
       s.phase = s.count % 4 === 0 ? 'long_break' : 'short_break';
     } else {
@@ -69,6 +70,22 @@
       render();
     }, 500);
   }
+
+  /* ── Public: work-hours accounting ─────────────────────────── */
+  window.__pomodoroGetWorkSec = function () {
+    const s = load() || fresh();
+    let total = s.totalWorkSec || 0;
+    if (s.phase === 'work' && s.running) {
+      total += PHASES.work - getRem(s);
+    }
+    return Math.floor(total);
+  };
+
+  window.__pomodoroResetHours = function () {
+    const s = load() || fresh();
+    s.totalWorkSec = 0;
+    save(s);
+  };
 
   /* ── Public API ─────────────────────────────────────────────── */
   window.__pomodoroAutoStart = function () {
